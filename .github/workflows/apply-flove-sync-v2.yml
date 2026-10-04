@@ -1,0 +1,30 @@
+name: Apply Flove Sync V2
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/flove-sync-v2]
+    paths:
+      - .github/workflows/apply-flove-sync-v2.yml
+      - tools/install_sync_v2.py
+      - sync-v2.js
+permissions:
+  contents: write
+concurrency:
+  group: flove-sync-v2-install
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/flove-sync-v2
+      - name: Verify original files and apply reviewed patch
+        run: python3 tools/install_sync_v2.py
+      - name: Commit only the eight HTML updates to the work branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html korean.html math.html eng.html sang.html samun.html plan.html timer.html
+          git commit -m "Fix Flove cloud sync across eight study screens"
+          git push origin HEAD:fix/flove-sync-v2
