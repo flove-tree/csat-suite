@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="ko" data-subject="absolute">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>수학 오답 & 행동강령 통합 대시보드 v10 (최종 최적화판)</title>
+<script>
+  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+
+  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
+  async function syncLoadFromCloud() {
+    try {
+      const response = await fetch(SYNC_SERVER_URL);
+      const cloudData = await response.json();
+      if (cloudData && typeof cloudData === 'object') {
+        for (const [key, value] of Object.entries(cloudData)) {
+          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+        }
+        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+    } catch (err) {
+      console.error("불러오기 실패:", err);
+    }
+  }
+
+  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  async function syncSaveToCloud() {
+    try {
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        localData[key] = localStorage.getItem(key);
+      }
+      await fetch(SYNC_SERVER_URL, {
+        method: "POST",
+        body: JSON.stringify(localData)
+      });
+      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+    } catch (err) {
+      console.error("저장 실패:", err);
+    }
+  }
+
+  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
+  window.addEventListener('DOMContentLoaded', async () => {
+    await syncLoadFromCloud();
+  });
+
+  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    originalSetItem.apply(this, arguments);
+    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+  };
+</script>
+
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- CDN for html2pdf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root {
+      /* Dynamic Theme Variables (Default: 절대강령 - Crimson Red) */
+      --primary: #dc2626;
+      --primary-hover: #b91c1c;
+      --accent: #fef2f2;
+      --badge-bg: #fee2e2;
+      --badge-text: #991b1b;
+      --bg-color: #fff5f5;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius: 12px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --transition-speed: 0.25s;
+    }
+
+    /* 수학 I Theme (Sky Blue) */
+    html[data-subject="math1"] {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --accent: #eff6ff;
+      --badge-bg: #dbeafe;
+      --badge-text: #1e40af;
+      --bg-color: #f8fafc;
+    }
+
+    /* 수학 II Theme (Emerald Green) */
+    html[data-subject="math2"] {
+      --primary: #059669;
+      --primary-hover: #047857;
+      --accent: #ecfdf5;
+      --badge-bg: #d1fae5;
+      --badge-text: #065f46;
+      --bg-color: #f0fdf4;
+    }
+
+    /* 확률과 통계 Theme (Royal Purple) */
+    html[data-subject="stats"] {
+      --primary: #7c3aed;
+      --primary-hover: #6d28d9;
+      --accent: #f5f3ff;
+      --badge-bg: #ede9fe;
+      --badge-text: #5b21b6;
+      --bg-color: #faf5ff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 2rem 1rem;
+      line-height: 1.5;
+      transition: background-color var(--transition-speed) ease;
+    }
+
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+    }
+
+    /* Subject Switcher Navigation Tabs */
+    .subject-nav {
+      display: flex;
+      justify-content: center;
+      gap: 0.8rem;
+      margin-bottom: 1.8rem;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      flex: 1;
+      min-width: 180px;
+      max-width: 280px;
+      padding: 0.95rem 1.2rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      border-radius: 30px;
+      border: 2px solid var(--border-color);
+      background-color: var(--card-bg);
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: var(--shadow);
+      transition: all var(--transition-speed) ease;
+    }
+
+    .tab-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .tab-btn.active[data-target="absolute"] {
+      background-color: #dc2626;
+      color: #ffffff;
+      border-color: #dc2626;
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+    }
+
+    .tab-btn.active[data-target="math1"] {
+      background-color: #2563eb;
+      color: #ffffff;
+      border-color: #2563eb;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    .tab-btn.active[data-target="math2"] {
+      background-color: #059669;
+      color: #ffffff;
+      border-color: #059669;
+      box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+    }
+
+    .tab-btn.active[data-target="stats"] {
+      background-color: #7c3aed;
+      color: #ffffff;
+      border-color: #7c3aed;
+      box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+    }
+
+    /* Header Area */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.2rem;
+      border-bottom: 2px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .logo-area h1 {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .logo-area h1 .subject-tag {
+      background: var(--primary);
+      color: white;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.8rem;
+      border-radius: 20px;
+      transition: background-color var(--transition-speed) ease;
+    }
+
+    .logo-area p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .export-btns {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background-color: var(--card-bg);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: #f1f5f9;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      transition: background-color var(--transition-speed) ease;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: #0f172a;
+      color: white;
+      border: none;
+    }
+
+    .btn-secondary:hover {
+      background-color: #334155;
+    }
+
+    .btn-danger {
+      color: var(--danger);
+      border-color: #fee2e2;
+    }
+
+    .btn-danger:hover {
+      background-color: #fef2f2;
+    }
+
+    /* Main Grid Layout */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 1.5rem;
+    }
+
+    /* Card Panels */
+    .panel {
+      background-color: var(--card-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border-color);
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .panel-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Quick Mode Banner */
+    .quick-mode-banner {
+      background-color: #fef3c7;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      margin-bottom: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 1rem;
+      position: relative;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 0.35rem;
+    }
+
+    .form-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 0.65rem 0.8rem;
+      font-size: 0.9rem;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      outline: none;
+      background-color: #fff;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+      line-height: 1.6;
+    }
+
+    .hint-text {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    /* Image Attachment Styling */
+    .img-upload-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .img-preview-box {
+      position: relative;
+      display: none;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      max-height: 200px;
+      background-color: #f1f5f9;
+      text-align: center;
+    }
+
+    .img-preview-box img {
+      max-width: 100%;
+      max-height: 200px;
+      object-fit: contain;
+    }
+
+    .img-remove-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(239, 68, 68, 0.85);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Card Image Styling */
+    .note-image-container {
+      margin-top: 0.8rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background-color: #f8fafc;
+      text-align: center;
+    }
+
+    .note-image-container img {
+      max-width: 100%;
+      max-height: 350px;
+      object-fit: contain;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .note-image-container img:hover {
+      transform: scale(1.02);
+    }
+
+    /* Math Symbol Toolbar Component (통합 수식 입력기) */
+    .math-toolbar-box {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background-color: #f8fafc;
+      padding: 0.6rem 0.8rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .math-toolbar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .math-toolbar-header span {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .math-toolbar-content {
+      display: none;
+      margin-top: 0.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px dashed var(--border-color);
+    }
+
+    .math-toolbar-content.active {
+      display: block;
+    }
+
+    .symbol-group-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+      margin-top: 0.5rem;
+    }
+
+    .symbol-group-label:first-child {
+      margin-top: 0;
+    }
+
+    .symbol-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .sym-btn {
+      background: #fff;
+      border: 1px solid var(--border-color);
+      border-radius: 5px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1e293b;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .sym-btn:hover {
+      background-color: var(--accent);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Weakness Analysis Bar Fixed Alignment */
+    .unit-rank-item {
+      display: grid;
+      grid-template-columns: 240px 1fr 45px;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.83rem;
+      background: #fff;
+      padding: 0.5rem 0.86rem;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .unit-rank-title {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-main);
+    }
+
+    .unit-rank-count {
+      font-weight: 700;
+      text-align: right;
+      color: var(--text-main);
+    }
+
+    .unit-rank-item.top-weak .unit-rank-count {
+      color: #ef4444;
+    }
+
+    /* Collapsible Weakness Card */
+    .weakness-card {
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 1rem 1.2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+
+    .weakness-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .weakness-header h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .toggle-icon-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 0.25rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: background-color 0.2s ease;
+    }
+
+    .toggle-icon-btn:hover {
+      background-color: #f1f5f9;
+    }
+
+    .weakness-content {
+      margin-top: 1rem;
+      display: block;
+    }
+
+    .weakness-content.collapsed {
+      display: none;
+    }
+
+    .weak-alert {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      background-color: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .weak-alert .icon {
+      font-size: 1.4rem;
+    }
+
+    .weak-alert-text {
+      font-size: 0.88rem;
+      color: #991b1b;
+    }
+
+    .weak-alert-text strong {
+      font-weight: 800;
+      color: #dc2626;
+    }
+
+    .unit-rank-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .bar-bg {
+      width: 100%;
+      height: 8px;
+      background-color: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background-color: var(--primary);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+
+    .unit-rank-item.top-weak .bar-fill {
+      background-color: #ef4444;
+    }
+
+    /* Controls Bar & Filters */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      margin-bottom: 1.2rem;
+      flex-wrap: wrap;
+    }
+
+    .search-input {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .filter-group select {
+      width: auto;
+      min-width: 120px;
+    }
+
+    /* Stats Overview Bar */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.8rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .stat-card {
+      background-color: var(--accent);
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid var(--border-color);
+    }
+
+    .stat-card .num {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.1rem;
+    }
+
+    /* Note Cards List */
+    .notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .note-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s ease;
+    }
+
+    .note-card:hover {
+      border-color: #cbd5e1;
+    }
+
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .note-badges {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+    }
+
+    .badge-unit {
+      background-color: var(--accent);
+      color: var(--badge-text);
+      border: 1px solid var(--border-color);
+    }
+
+    .badge-category {
+      background-color: #f1f5f9;
+      color: var(--text-main);
+    }
+
+    .badge-book {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-importance {
+      background-color: #f3e8ff;
+      color: #6b21a8;
+    }
+
+    .note-title {
+      font-weight: 700;
+      font-size: 1.05rem;
+      margin-top: 0.4rem;
+      color: var(--text-main);
+    }
+
+    .note-section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.3rem;
+    }
+
+    .note-content-box {
+      background-color: #f8fafc;
+      padding: 0.85rem 1rem;
+      border-radius: 6px;
+      border-left: 4px solid var(--primary);
+      font-size: 0.925rem;
+      color: #334155;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      margin-top: 0.5rem;
+    }
+
+    .note-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 0.9rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .note-actions {
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3.5rem 1rem;
+      color: var(--text-muted);
+    }
+
+    /* Print / PDF Specific Styling */
+    @media print {
+      body {
+        background-color: white !important;
+        padding: 0 !important;
+        color: #000 !important;
+      }
+      header, .subject-nav, .panel:first-child, .controls-bar, .stats-bar, .weakness-card, .math-toolbar-box, .note-actions, .export-btns {
+        display: none !important;
+      }
+      .container {
+        max-width: 100% !important;
+      }
+      .main-grid {
+        display: block !important;
+      }
+      .panel {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+      .note-card {
+        break-inside: avoid;
+        border: 1px solid #ccc !important;
+        margin-bottom: 1.2rem !important;
+        box-shadow: none !important;
+        padding: 1rem !important;
+      }
+      .note-content-box {
+        background-color: #f9f9f9 !important;
+        border-left: 4px solid #000 !important;
+      }
+      .print-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #000;
+      }
+    }
+
+    .print-header {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<!-- Universal Navigation Bar Header -->
+<nav style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-family: Pretendard, sans-serif; font-size: 13px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 9999;">
+  <div style="display: flex; align-items: center; gap: 8px; font-weight: 800;">
+    <a href="index.html" style="color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #0284c7; color: #ffffff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">F</span>
+      <span>Flove Suite</span>
+    </a>
+  </div>
+  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+    <a href="korean.html" style="color: #f43f5e; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(244,63,94,0.12); font-weight: 700;">📖 국어</a>
+    <a href="math.html" style="color: #3b82f6; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(59,130,246,0.12); font-weight: 700;">📐 수학</a>
+    <a href="eng.html" style="color: #6366f1; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); font-weight: 700;">🔤 영어</a>
+    <a href="sang.html" style="color: #a855f7; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(168,85,247,0.12); font-weight: 700;">⚖️ 생윤</a>
+    <a href="samun.html" style="color: #10b981; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); font-weight: 700;">📊 사문</a>
+    <span style="color: #334155;">|</span>
+    <a href="plan.html" style="color: #f59e0b; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.12); font-weight: 700;">🎯 플래너</a>
+    <a href="timer.html" style="color: #f97316; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(249,115,22,0.12); font-weight: 700;">☕ 타이머</a>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- Subject Switcher Tabs -->
+  <div class="subject-nav">
+    <button class="tab-btn active" id="tabAbsolute" data-target="absolute" onclick="switchSubject('absolute')">
+      🔥 절대강령 (Critical)
+    </button>
+    <button class="tab-btn" id="tabMath1" data-target="math1" onclick="switchSubject('math1')">
+      📐 수학 I (Math I)
+    </button>
+    <button class="tab-btn" id="tabMath2" data-target="math2" onclick="switchSubject('math2')">
+      📈 수학 II (Math II)
+    </button>
+    <button class="tab-btn" id="tabStats" data-target="stats" onclick="switchSubject('stats')">
+      🎲 확률과 통계 (Prob & Stats)
+    </button>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="logo-area">
+      <h1>수학 오답 & 행동강령 대시보드 <span class="subject-tag" id="headerSubjectBadge">절대강령</span></h1>
+      <p id="headerSubText">수학 시험 전체에 최우선으로 적용할 절대적 핵심 행동강령 및 실수 방지 원칙</p>
+    </div>
+    <div class="export-btns">
+      <button class="btn" onclick="exportToWord()" title="Word 문서로 다운로드">📝 Word 내보내기</button>
+      <button class="btn btn-secondary" onclick="exportToPDF()" title="PDF 문서로 저장">📥 PDF 내보내기</button>
+      <button class="btn btn-primary" onclick="window.print()" title="인쇄 / PDF 출력">🖨️ 인쇄 / PDF 출력</button>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <!-- Form Section -->
+    <div class="panel">
+      <div class="panel-title">
+        <span id="formTitle">🔥 [절대강령] 핵심 행동강령 작성</span>
+        <button class="btn btn-danger" id="cancelEditBtn" style="display:none; padding:0.2rem 0.5rem; font-size:0.75rem;" onclick="cancelEdit()">취소</button>
+      </div>
+
+      <!-- 비상 빠른 복구 모드 토글 -->
+      <div class="quick-mode-banner">
+        <span style="font-size: 0.825rem; font-weight: 700; color: #92400e;">⚡ 긴급 빠른 복구 모드</span>
+        <label style="font-size: 0.8rem; font-weight: 600; color: #78350f; cursor: pointer; display: flex; align-items: center; gap: 0.35rem;">
+          <input type="checkbox" id="quickModeToggle" onchange="toggleQuickMode()"> 모드 켜기
+        </label>
+      </div>
+
+      <form id="noteForm">
+        <!-- Curriculum / Guideline Unit Selection -->
+        <div class="form-group">
+          <label for="unitSelect" id="unitSelectLabel">영역 / 행동 영역 선택</label>
+          <select id="unitSelect" required onchange="updateTopicSuggestions()">
+            <!-- Dynamically Populated -->
+          </select>
+        </div>
+
+        <!-- Exam / Book Category Dropdown -->
+        <div class="form-group">
+          <label for="examCategory">출처 / 분류 선택</label>
+          <select id="examCategory" onchange="handleCategoryChange()">
+            <option value="수능/평가원">수능 / 평가원 (6월, 9월, 수능)</option>
+            <option value="교육청">교육청 모의고사</option>
+            <option value="교재/N제">📚 시중 교재 / EBS / 문제집</option>
+            <option value="사관/경찰/자작">사관학교 / 경찰대 / 자작</option>
+            <option value="기타">기타 / 학교 기출</option>
+          </select>
+        </div>
+
+        <!-- Dynamic Fields Container (Exam vs Book Details) -->
+        <div id="dynamicSourceFields" class="form-group">
+          <!-- Dynamically changed by handleCategoryChange() -->
+        </div>
+
+        <!-- Importance / Difficulty -->
+        <div class="form-group">
+          <label for="importance">중요도 / 우선순위</label>
+          <select id="importance">
+            <option value="★★★★★ (필수복습)">★★★★★ (필수복습/절대원칙)</option>
+            <option value="★★★★☆ (고난도)">★★★★☆ (고난도/실전적용)</option>
+            <option value="★★★☆☆ (보통)">★★★☆☆ (보통)</option>
+            <option value="★★☆☆☆ (실수교정)">★★☆☆☆ (실수교정)</option>
+            <option value="★☆☆☆☆ (기본개념)">★☆☆☆☆ (기본개념)</option>
+          </select>
+        </div>
+
+        <!-- Topic Keyword with Auto-Complete Recommendations -->
+        <div class="form-group">
+          <label for="problemTitle">핵심 주제 / 제목 <span style="font-weight:400; font-size:0.75rem; color:var(--primary);">(💡 기존 주제 자동 추천)</span></label>
+          <input type="text" id="problemTitle" list="topicSuggestions" placeholder="예: [시험 태도] 막히는 문제는 3분 지체 금지" required onfocus="setLastFocused(this)">
+          <datalist id="topicSuggestions">
+            <!-- Dynamically Populated -->
+          </datalist>
+          <div class="hint-text">입력 시 기존에 작성했던 유사 주제가 자동으로 추천됩니다.</div>
+        </div>
+
+        <!-- Image Attachment Input -->
+        <div class="form-group">
+          <label for="imageInput">📷 관련 자료 / 이미지 첨부 <span style="font-weight:400; font-size:0.75rem; color:var(--text-muted);">(선택)</span></label>
+          <div class="img-upload-wrapper">
+            <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(this)">
+            <div class="img-preview-box" id="imgPreviewBox">
+              <img id="imgPreview" src="" alt="이미지 미리보기">
+              <button type="button" class="img-remove-btn" onclick="removeUploadedImage()" title="이미지 삭제">✕</button>
+            </div>
+          </div>
+          <div class="hint-text">그래프, 풀이법, 캡처 이미지를 첨부하세요.</div>
+        </div>
+
+        <!-- Collapsible Math Expression Input Toolbar (통합 수식 입력기) -->
+        <div class="math-toolbar-box">
+          <div class="math-toolbar-header" onclick="toggleMathToolbar()">
+            <span>🧮 빠른 수식 / 기호 입력기 (통합)</span>
+            <span id="mathToolToggleText" style="font-size:0.75rem; font-weight:600; color:var(--text-muted);">열기 ▼</span>
+          </div>
+          <div class="math-toolbar-content" id="mathToolbarContent">
+            <!-- 그룹 1: 기본 지수/연산 -->
+            <div class="symbol-group-label">지수 / 루트 / 분수</div>
+            <div class="symbol-btns">
+              <button type="button" class="sym-btn" onclick="insertSymbol('²')" title="제곱">x²</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('³')" title="세제곱">x³</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('ⁿ')" title="n제곱">xⁿ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('√(')" title="루트">√</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('∛(')" title="세제곱근">∛</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('a/b')" title="분수 형태">분수(a/b)</button>
+            </div>
+
+            <!-- 그룹 2: 수열 & 아래첨자 (일반항/첫째항/합 신규 추가) -->
+            <div class="symbol-group-label">수열 & 아래첨자 (일반항 / 첫째항 / 합)</div>
+            <div class="symbol-btns">
+              <button type="button" class="sym-btn" onclick="insertSymbol('aₙ')" title="일반항 a_n">aₙ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('a₁')" title="첫째항 a_1">a₁</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('a₂')" title="둘째항 a_2">a₂</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('aₙ₊₁')" title="a_{n+1}">aₙ₊₁</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('aₙ₋₁')" title="a_{n-1}">aₙ₋₁</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('Sₙ')" title="수열의 합 S_n">Sₙ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('bₙ')" title="수열 b_n">bₙ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('ₙ')" title="아래첨자 n">ₙ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('₁')" title="아래첨자 1">₁</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('₂')" title="아래첨자 2">₂</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('ₖ')" title="아래첨자 k">ₖ</button>
+            </div>
+
+            <!-- 그룹 3: 확률과 통계 전용 기호 -->
+            <div class="symbol-group-label">확률과 통계 기호 (확통)</div>
+            <div class="symbol-btns">
+              <button type="button" class="sym-btn" onclick="insertSymbol('nPk')" title="순열 P">nPk</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('nCk')" title="조합 C">nCk</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('nHk')" title="중복조합 H">nHk</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('n!')" title="팩토리얼 !">n!</button>
+            </div>
+
+            <!-- 그룹 4: 삼각, 수열, 미적분, 수학기호 -->
+            <div class="symbol-group-label">수학 기호 & 삼각 / 수열 / 미적분</div>
+            <div class="symbol-btns">
+              <button type="button" class="sym-btn" onclick="insertSymbol('π')" title="파이">π</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('θ')" title="세타">θ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('Σ')" title="시그마">Σ</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('∫')" title="인테그랄">∫</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('lim')" title="리미트">lim</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('log_a(b)')" title="로그">log</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('∞')" title="무한대">∞</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('±')" title="플러스마이너스">±</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('≤')" title="작거나 같다">≤</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('≥')" title="크거나 같다">≥</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('≠')" title="같지 않다">≠</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('×')" title="곱하기">×</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('÷')" title="나누기">÷</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('°')" title="도(각도)">°</button>
+              <button type="button" class="sym-btn" onclick="insertSymbol('△')" title="삼각형">△</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Incorrect Reason & Action Guideline -->
+        <div class="form-group">
+          <label for="noteContent">절대 행동강령 (Action Code)</label>
+          <textarea id="noteContent" placeholder="• 시험 시작 후 최우선으로 지켜야 할 원칙&#10;• 실수 예방 및 시간 관리 행동강령 작성" required onfocus="setLastFocused(this)"></textarea>
+          <div class="hint-text">💡 Enter 키를 누르면 바로 저장됩니다. (줄바꿈: Shift + Enter)</div>
+        </div>
+
+        <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 0.75rem;">
+          💾 행동강령 / 오답 노트 추가하기
+        </button>
+      </form>
+    </div>
+
+    <!-- Notes Display Section -->
+    <div class="panel" id="exportArea">
+      <div class="print-header">
+        <h1 id="printTitle">수학 오답 & 행동강령 복습 모음집</h1>
+        <p id="printSub">생성일자: <span id="printDate"></span></p>
+      </div>
+
+      <!-- Collapsible Weakness Auto Analysis Card -->
+      <div class="weakness-card" id="weaknessAnalysisArea">
+        <div class="weakness-header" onclick="toggleWeaknessCard()">
+          <h3 id="weaknessHeaderTitle">🎯 약점/분류별 누적 분석 (기록 횟수 기준)</h3>
+          <button class="toggle-icon-btn" type="button" id="weaknessToggleBtn">
+            <span id="toggleText">접기</span> <span id="toggleIcon">▲</span>
+          </button>
+        </div>
+        <div class="weakness-content" id="weaknessContent">
+          <div id="weaknessAlertBox">
+            <!-- Dynamically Populated -->
+          </div>
+          <div class="unit-rank-list" id="unitRankList">
+            <!-- Dynamically Populated -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats Overview -->
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="num" id="statTotal">0</div>
+          <div class="label">총 기록 항목</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="statHighCount">0</div>
+          <div class="label">최우선/필수 복습</div>
+        </div>
+        <div class="stat-card">
+          <div class="num" id="statFilteredCount">0</div>
+          <div class="label">현재 조회 중</div>
+        </div>
+      </div>
+
+      <!-- Search & Filters + Sorting Bar -->
+      <div class="controls-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 주제, 행동강령, 교재/출처 검색..." oninput="renderNotes()">
+        <div class="filter-group">
+          <!-- Sorting Options -->
+          <select id="sortOrder" onchange="renderNotes()" title="정렬 순서">
+            <option value="CUSTOM">사용자 지정 순서 (▲/▼)</option>
+            <option value="LATEST">최근 등록순 ⬇️</option>
+            <option value="OLDEST">오래된 등록순 ⬆️</option>
+            <option value="UNIT_ORDER">단원/영역 순서대로 📐</option>
+            <option value="IMPORTANCE">중요도 높은순 ★</option>
+          </select>
+          <select id="filterUnit" onchange="renderNotes()">
+            <option value="ALL">전체 영역</option>
+          </select>
+          <select id="filterCat" onchange="renderNotes()">
+            <option value="ALL">전체 출처</option>
+            <option value="수능/평가원">수능/평가원</option>
+            <option value="교육청">교육청</option>
+            <option value="교재/N제">시중 교재/N제</option>
+            <option value="사관/경찰/자작">사관/경찰/자작</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Realtime Notes List -->
+      <div id="notesList" class="notes-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 2015 Revised Curriculum & Absolute Guidelines for Mathematics
+  const curriculumData = {
+    absolute: {
+      name: "절대강령",
+      subtext: "수학 시험 전체에 최우선으로 적용할 절대적 핵심 행동강령 및 실수 방지 원칙",
+      units: [
+        "🔥 [공통] 실수 방지 행동강령",
+        "⏰ [시간] 시간 배분 및 검산 원칙",
+        "🔍 [해석] 조건 해석 및 문제 읽기 태도",
+        "✏️ [검수] 계산 및 OMR 검수 규칙"
+      ]
+    },
+    math1: {
+      name: "수학 I",
+      subtext: "지수함수와 로그함수 · 삼각함수 · 수열 개념 및 오답 분석",
+      units: [
+        "I-1. 지수와 로그",
+        "I-2. 지수함수와 로그함수",
+        "II-1. 삼각함수의 뜻과 그래프",
+        "II-2. 삼각함수의 활용 (사인·코사인법칙)",
+        "III-1. 등차수열과 등비수열",
+        "III-2. 수열의 합 (Σ)",
+        "III-3. 수학적 귀납법"
+      ]
+    },
+    math2: {
+      name: "수학 II",
+      subtext: "함수의 극한과 연속 · 다항함수의 미분법 · 다항함수의 적분법 오답 분석",
+      units: [
+        "I-1. 함수의 극한",
+        "I-2. 함수의 연속",
+        "II-1. 미분계수와 도함수",
+        "II-2. 도함수의 활용 (접선, 극대·극소, 그래프)",
+        "II-3. 도함수의 활용 (방정식·부등식, 속도·가속도)",
+        "III-1. 부정적분과 정적분",
+        "III-2. 정적분의 활용 (넓이, 속도와 거리)"
+      ]
+    },
+    stats: {
+      name: "확률과 통계",
+      subtext: "순열과 조합 · 확률 · 통계 개념 및 행동강령 모음집",
+      units: [
+        "I-1. 원순열 · 중복순열 · 같은 것이 있는 순열",
+        "I-2. 중복조합과 이항정리",
+        "II-1. 확률의 뜻과 활용",
+        "II-2. 조건부확률과 사건의 독립·종속",
+        "III-1. 확률변수와 확률분포",
+        "III-2. 이항분포와 정규분포",
+        "III-3. 통계적 추정 (모평균의 추정)"
+      ]
+    }
+  };
+
+  // Restored Initial Sample Data for Absolute Guidelines
+  const restoredAbsoluteMathData = [
+    {
+      id: 9001,
+      subject: 'absolute',
+      unit: '⏰ [시간] 시간 배분 및 검산 원칙',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '절대강령 #1 (막힘 방지 태도)',
+      content: '• 한 문제에서 3분 이상 계산이나 발상이 막히면 별표 치고 즉시 다음 문제로 넘어갈 것!\n• 시험 종료 15분 전에는 반드시 풀 수 있는 문제부터 OMR 마킹을 완료한 후 고난도 재도전.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 9002,
+      subject: 'absolute',
+      unit: '🔍 [해석] 조건 해석 및 문제 읽기 태도',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '절대강령 #2 (조건 구획화 및 실수 방지)',
+      content: '• 정수/실수/양수/음수 조건 및 제한 범위(0 < x < 2π)는 문제 읽자마자 형광펜/동그라미 표시!\n• 문제에서 최종적으로 구하라는 값(예: f(2) vs f\'(2))을 OMR 적기 전 다시 한 번 확인하기.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    }
+  ];
+
+  // Restored Initial Sample Data for Probability & Statistics (확률과 통계 샘플 통합)
+  const restoredStatsMathData = [
+    {
+      id: 8001,
+      subject: 'stats',
+      unit: 'I-1. 원순열 · 중복순열 · 같은 것이 있는 순열',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '[원순열/중복순열] 서로 다른 n개를 서로 다른 r개에 나누어 담는 경우',
+      content: '• \'서로 다른\' 대상 → \'서로 다른\' 상자/상태로 배정할 때는 중복순열(n^r 또는 r^n) 적용.\n• 선택권이 누구에게 있는지 기준을 잡고, 각 요소가 선택할 수 있는 가짓수를 곱함.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8002,
+      subject: 'stats',
+      unit: 'I-2. 중복조합과 이항정리',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '[중복조합] 방정식 x + y + z = n 의 음이 아닌 정수해',
+      content: '• \'무기명 투표\', \'동일한 공을 서로 다른 상자에 넣기\' → 중복조합 nHr 적용.\n• 양의 정수해(자연수해) 조건일 경우 미리 1씩 나누어 준 후(x\' = x-1 ≥ 0) nH(k-3r) 형태로 변환.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8003,
+      subject: 'stats',
+      unit: 'II-1. 확률의 뜻과 활용',
+      category: '수능/평가원',
+      importance: '★★★★☆ (고난도)',
+      title: '[여사건] \'~적어도\', \'~이상\', \'~하지 않을\' 조건의 확률',
+      content: '• \'적어도 하나\', \'모두 ~가 아니다\' 문구가 보이면 전체 확률 1에서 여사건 확률 P(A^c)을 빼는 구조로 접근.\n• 여사건의 케이스가 훨씬 적은지 먼저 세어보기.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8004,
+      subject: 'stats',
+      unit: 'II-2. 조건부확률과 사건의 독립·종속',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '[조건부확률] 표(2x2 분할표) 작성으로 사건 구획화',
+      content: '• 조건부확률 P(B|A) = P(A∩B) / P(A)\n• 두 성질(예: 남/여, 찬성/반대)이 결합된 문제는 표(Contingency Table)를 작성하면 분모/분자가 한눈에 보임.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8005,
+      subject: 'stats',
+      unit: 'II-2. 조건부확률과 사건의 독립·종속',
+      category: '교육청',
+      importance: '★★★☆☆ (보통)',
+      title: '[독립시행] n회 시행 중 r회 일어날 확률',
+      content: '• 각 시행이 독립이고 성공 확률이 p로 일정할 때: P(X=k) = nCk * p^k * (1-p)^(n-k)\n• 회수 k에 따른 케이스를 분류하여 합산.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8006,
+      subject: 'stats',
+      unit: 'III-2. 이항분포와 정규분포',
+      category: '수능/평가원',
+      importance: '★★★★☆ (고난도)',
+      title: '[이항분포] X ~ B(n, p) 의 평균과 분산',
+      content: '• 평균 E(X) = np, 분산 V(X) = np(1-p)\n• n이 충분히 클 때 정규분포 N(np, np(1-p))에 근사하여 확률 계산.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8007,
+      subject: 'stats',
+      unit: 'III-2. 이항분포와 정규분포',
+      category: '수능/평가원',
+      importance: '★★★★★ (필수복습)',
+      title: '[정규분포] 표준화 공식 Z = (X - μ) / σ',
+      content: '• 서로 다른 두 정규분포의 확률 비교나 확률 계산 시 반드시 Z-점수로 표준화.\n• 대칭성 P(Z ≤ -a) = P(Z ≥ a) 활용.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    },
+    {
+      id: 8008,
+      subject: 'stats',
+      unit: 'III-3. 통계적 추정 (모평균의 추정)',
+      category: '교재/N제',
+      importance: '★★★☆☆ (보통)',
+      title: '[모평균 추정] 신뢰구간의 길이 L = 2k * (σ / √n)',
+      content: '• 95% 신뢰구간: x̄ - 1.96(σ/√n) ≤ m ≤ x̄ + 1.96(σ/√n)\n• 표본의 크기 n이 4배가 되면 신뢰구간의 길이는 1/2배로 감소함.',
+      createdAt: new Date().toLocaleDateString('ko-KR')
+    }
+  ];
+
+  // Helper to load and consolidate notes from localStorage (절대강령 + 확통 내장 샘플 자동 통합)
+  function loadAndConsolidateNotes() {
+    let saved = JSON.parse(localStorage.getItem('math_review_notes_v3')) || [];
+    
+    // Inject initial sample absolute notes if missing
+    restoredAbsoluteMathData.forEach(item => {
+      if (!saved.some(n => n.id === item.id || n.content === item.content)) {
+        saved.push(item);
+      }
+    });
+
+    // Inject initial sample stats notes if missing
+    restoredStatsMathData.forEach(item => {
+      if (!saved.some(n => n.id === item.id || n.content === item.content)) {
+        saved.push(item);
+      }
+    });
+
+    localStorage.setItem('math_review_notes_v3', JSON.stringify(saved));
+    return saved;
+  }
+
+  // State Management
+  let currentSubject = 'absolute';
+  let notes = loadAndConsolidateNotes();
+  let editingId = null;
+  let isWeaknessCollapsed = false;
+  let isMathToolbarOpen = false;
+  let lastFocusedEl = null;
+  let currentUploadedImageData = '';
+  let isQuickMode = false;
+
+  // Initialize
+  function init() {
+    document.getElementById('printDate').textContent = new Date().toLocaleDateString('ko-KR');
+    switchSubject('absolute');
+    setupNoteContentInteractions();
+  }
+
+  // Quick Mode Toggle
+  function toggleQuickMode() {
+    isQuickMode = document.getElementById('quickModeToggle').checked;
+    const problemTitle = document.getElementById('problemTitle');
+    const noteContent = document.getElementById('noteContent');
+
+    const toggleRequired = (el, isReq, placeholderDefault) => {
+      if (!el) return;
+      if (isReq) {
+        el.setAttribute('required', 'true');
+        if (placeholderDefault) el.placeholder = placeholderDefault;
+      } else {
+        el.removeAttribute('required');
+        el.placeholder = "자동 입력 (생략 가능)";
+      }
+    };
+
+    const examYear = document.getElementById('examYear');
+    const bookTitle = document.getElementById('bookTitle');
+    const bookPage = document.getElementById('bookPage');
+    const bookQuestion = document.getElementById('bookQuestion');
+
+    if (isQuickMode) {
+      toggleRequired(problemTitle, false);
+      toggleRequired(examYear, false);
+      toggleRequired(bookTitle, false);
+      toggleRequired(bookPage, false);
+      toggleRequired(bookQuestion, false);
+      noteContent.focus();
+    } else {
+      toggleRequired(problemTitle, true, currentSubject === 'absolute' ? "예: [시험 태도] 막히는 문제는 3분 지체 금지" : "예: 삼각함수의 그래프 대칭성과 주기성 활용");
+      toggleRequired(examYear, true, "예: 25학년도 6월 22");
+      toggleRequired(bookTitle, true, "예: 쎈 수학, 수능특강");
+      toggleRequired(bookPage, true, "예: 19 (자동 19p)");
+      toggleRequired(bookQuestion, true, "예: 15, 예제 3");
+    }
+  }
+
+  // Handle Image Upload & Base64
+  function handleImageUpload(inputEl) {
+    const file = inputEl.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('이미지 크기는 5MB 이하만 첨부 가능합니다.');
+      inputEl.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      currentUploadedImageData = e.target.result;
+      const imgPreview = document.getElementById('imgPreview');
+      const imgPreviewBox = document.getElementById('imgPreviewBox');
+      
+      if (imgPreview && imgPreviewBox) {
+        imgPreview.src = currentUploadedImageData;
+        imgPreviewBox.style.display = 'block';
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeUploadedImage() {
+    currentUploadedImageData = '';
+    const imageInput = document.getElementById('imageInput');
+    const imgPreviewBox = document.getElementById('imgPreviewBox');
+    const imgPreview = document.getElementById('imgPreview');
+
+    if (imageInput) imageInput.value = '';
+    if (imgPreviewBox) imgPreviewBox.style.display = 'none';
+    if (imgPreview) imgPreview.src = '';
+  }
+
+  function setLastFocused(el) {
+    lastFocusedEl = el;
+  }
+
+  function formatQuestionInput(inputEl) {
+    let val = inputEl.value.trim();
+    if (!val) return;
+    if (!val.endsWith('번')) {
+      inputEl.value = val + '번';
+    }
+  }
+
+  function setupNoteContentInteractions() {
+    const textarea = document.getElementById('noteContent');
+    if (!textarea) return;
+
+    textarea.addEventListener('input', function() {
+      this.scrollTop = this.scrollHeight;
+      this.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    textarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const form = document.getElementById('noteForm');
+        if (form) {
+          form.requestSubmit();
+        }
+      }
+    });
+  }
+
+  function updateTopicSuggestions() {
+    const datalist = document.getElementById('topicSuggestions');
+    if (!datalist) return;
+
+    const subjectNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    
+    const uniqueTitles = Array.from(new Set(
+      subjectNotes
+        .map(n => n.title ? n.title.trim() : '')
+        .filter(t => t.length > 0)
+    ));
+
+    datalist.innerHTML = uniqueTitles.map(t => `<option value="${escapeHtml(t)}">`).join('');
+  }
+
+  function toggleMathToolbar() {
+    isMathToolbarOpen = !isMathToolbarOpen;
+    const content = document.getElementById('mathToolbarContent');
+    const toggleText = document.getElementById('mathToolToggleText');
+
+    if (isMathToolbarOpen) {
+      content.classList.add('active');
+      toggleText.textContent = '닫기 ▲';
+    } else {
+      content.classList.remove('active');
+      toggleText.textContent = '열기 ▼';
+    }
+  }
+
+  function insertSymbol(symbolStr) {
+    const target = lastFocusedEl || document.getElementById('noteContent');
+    if (!target) return;
+
+    const start = target.selectionStart || target.value.length;
+    const end = target.selectionEnd || target.value.length;
+    const text = target.value;
+
+    target.value = text.substring(0, start) + symbolStr + text.substring(end);
+    target.focus();
+    
+    const newPos = start + symbolStr.length;
+    target.setSelectionRange(newPos, newPos);
+  }
+
+  function toggleWeaknessCard() {
+    isWeaknessCollapsed = !isWeaknessCollapsed;
+    const content = document.getElementById('weaknessContent');
+    const toggleText = document.getElementById('toggleText');
+    const toggleIcon = document.getElementById('toggleIcon');
+
+    if (isWeaknessCollapsed) {
+      content.classList.add('collapsed');
+      toggleText.textContent = '펼치기';
+      toggleIcon.textContent = '▼';
+    } else {
+      content.classList.remove('collapsed');
+      toggleText.textContent = '접기';
+      toggleIcon.textContent = '▲';
+    }
+  }
+
+  function formatPageInput(inputEl) {
+    let val = inputEl.value.trim();
+    if (!val) return;
+    
+    let cleanNum = val.replace(/[^0-9]/g, '');
+    if (cleanNum) {
+      inputEl.value = cleanNum + 'p';
+    }
+  }
+
+  function handleCategoryChange(selectedVal = null) {
+    const category = selectedVal || document.getElementById('examCategory').value;
+    const container = document.getElementById('dynamicSourceFields');
+
+    if (category === '교재/N제') {
+      container.innerHTML = `
+        <div class="form-row-3">
+          <div>
+            <label for="bookTitle">교재명</label>
+            <input type="text" id="bookTitle" placeholder="${isQuickMode ? '자동 입력 (생략 가능)' : '예: 쎈 수학, 수능특강'}" ${isQuickMode ? '' : 'required'} onfocus="setLastFocused(this)">
+          </div>
+          <div>
+            <label for="bookPage">페이지</label>
+            <input type="text" id="bookPage" placeholder="${isQuickMode ? '자동 입력 (생략 가능)' : '예: 19 (자동 19p)'}" onblur="formatPageInput(this)" ${isQuickMode ? '' : 'required'} onfocus="setLastFocused(this)">
+            <div class="hint-text">숫자만 작성 시 자동 'p' 부착</div>
+          </div>
+          <div>
+            <label for="bookQuestion">문항 번호</label>
+            <input type="text" id="bookQuestion" placeholder="${isQuickMode ? '자동 입력 (생략 가능)' : '예: 15, 예제 3'}" onblur="formatQuestionInput(this)" ${isQuickMode ? '' : 'required'} onfocus="setLastFocused(this)">
+            <div class="hint-text">작성 시 자동 '번' 부착</div>
+          </div>
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div>
+          <label for="examYear">시행 연도 / 문항 번호</label>
+          <input type="text" id="examYear" placeholder="${isQuickMode ? '자동 입력 (생략 가능)' : '예: 25학년도 6월 22'}" onblur="formatQuestionInput(this)" ${isQuickMode ? '' : 'required'} onfocus="setLastFocused(this)">
+          <div class="hint-text">작성 시 자동 '번' 부착</div>
+        </div>
+      `;
+    }
+  }
+
+  // Switch Subject Tabs
+  function switchSubject(subjectKey) {
+    currentSubject = subjectKey;
+    document.documentElement.setAttribute('data-subject', subjectKey);
+
+    document.getElementById('tabAbsolute').classList.toggle('active', subjectKey === 'absolute');
+    document.getElementById('tabMath1').classList.toggle('active', subjectKey === 'math1');
+    document.getElementById('tabMath2').classList.toggle('active', subjectKey === 'math2');
+    document.getElementById('tabStats').classList.toggle('active', subjectKey === 'stats');
+
+    const info = curriculumData[subjectKey];
+    document.getElementById('headerSubjectBadge').textContent = info.name;
+    document.getElementById('headerSubText').textContent = info.subtext;
+    
+    if (subjectKey === 'absolute') {
+      document.getElementById('formTitle').textContent = `🔥 [절대강령] 핵심 행동강령 작성`;
+    } else {
+      document.getElementById('formTitle').textContent = `✏ [${info.name}] 오답 노트 작성`;
+    }
+
+    const unitSelect = document.getElementById('unitSelect');
+    unitSelect.innerHTML = info.units.map(u => `<option value="${u}">${u}</option>`).join('');
+
+    const filterUnit = document.getElementById('filterUnit');
+    filterUnit.innerHTML = `<option value="ALL">전체 영역</option>` +
+      info.units.map(u => `<option value="${u}">${u}</option>`).join('');
+
+    cancelEdit();
+    renderNotes();
+  }
+
+  // Move Notes Order (Up / Down)
+  function moveNoteUp(id) {
+    const subjectNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    const indexInSubject = subjectNotes.findIndex(n => n.id === id);
+
+    if (indexInSubject > 0) {
+      const itemCurrent = subjectNotes[indexInSubject];
+      const itemAbove = subjectNotes[indexInSubject - 1];
+
+      const realIdx1 = notes.findIndex(n => n.id === itemCurrent.id);
+      const realIdx2 = notes.findIndex(n => n.id === itemAbove.id);
+
+      const temp = notes[realIdx1];
+      notes[realIdx1] = notes[realIdx2];
+      notes[realIdx2] = temp;
+
+      saveAndRender();
+    }
+  }
+
+  function moveNoteDown(id) {
+    const subjectNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    const indexInSubject = subjectNotes.findIndex(n => n.id === id);
+
+    if (indexInSubject >= 0 && indexInSubject < subjectNotes.length - 1) {
+      const itemCurrent = subjectNotes[indexInSubject];
+      const itemBelow = subjectNotes[indexInSubject + 1];
+
+      const realIdx1 = notes.findIndex(n => n.id === itemCurrent.id);
+      const realIdx2 = notes.findIndex(n => n.id === itemBelow.id);
+
+      const temp = notes[realIdx1];
+      notes[realIdx1] = notes[realIdx2];
+      notes[realIdx2] = temp;
+
+      saveAndRender();
+    }
+  }
+
+  // Form Submit Handler
+  document.getElementById('noteForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const unit = document.getElementById('unitSelect').value;
+    const category = document.getElementById('examCategory').value;
+    const importance = document.getElementById('importance').value;
+    
+    let title = document.getElementById('problemTitle').value;
+    if (isQuickMode && !title.trim()) {
+      const count = notes.length + 1;
+      title = `복구 항목 #${count}`;
+    }
+
+    const content = document.getElementById('noteContent').value;
+    const image = currentUploadedImageData;
+
+    let sourceDetail = '';
+    let bookTitle = '';
+    let bookPage = '';
+    let bookQuestion = '';
+    let examYear = '';
+
+    if (category === '교재/N제') {
+      bookTitle = document.getElementById('bookTitle') ? document.getElementById('bookTitle').value : '';
+      let rawPage = document.getElementById('bookPage') ? document.getElementById('bookPage').value.trim() : '';
+      let cleanNum = rawPage.replace(/[^0-9]/g, '');
+      bookPage = cleanNum ? (cleanNum + 'p') : rawPage;
+      bookQuestion = document.getElementById('bookQuestion') ? document.getElementById('bookQuestion').value : '';
+      
+      if (isQuickMode) {
+        if (!bookTitle) bookTitle = '복구교재';
+        if (!bookPage) bookPage = '1p';
+        if (!bookQuestion) bookQuestion = '1번';
+      }
+      sourceDetail = `${bookTitle} ${bookPage} ${bookQuestion}`.trim();
+    } else {
+      examYear = document.getElementById('examYear') ? document.getElementById('examYear').value : '';
+      if (isQuickMode && !examYear.trim()) {
+        examYear = '2026학년도';
+      }
+      sourceDetail = examYear;
+    }
+
+    if (editingId) {
+      notes = notes.map(n => n.id === editingId ? {
+        ...n, subject: currentSubject, unit, category, importance, title, content, image,
+        bookTitle, bookPage, bookQuestion, examYear, sourceDetail, updatedAt: new Date().toLocaleDateString()
+      } : n);
+      cancelEdit();
+    } else {
+      const newNote = {
+        id: Date.now(),
+        subject: currentSubject,
+        unit,
+        category,
+        importance,
+        title,
+        content,
+        image,
+        bookTitle,
+        bookPage,
+        bookQuestion,
+        examYear,
+        sourceDetail,
+        createdAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      };
+      notes.unshift(newNote);
+    }
+
+    saveAndRender();
+
+    if (isQuickMode) {
+      document.getElementById('noteContent').value = '';
+      document.getElementById('problemTitle').value = '';
+      removeUploadedImage();
+      document.getElementById('noteContent').focus();
+    } else {
+      this.reset();
+      removeUploadedImage();
+      handleCategoryChange('수능/평가원');
+    }
+  });
+
+  function cancelEdit() {
+    editingId = null;
+    document.getElementById('submitBtn').textContent = '💾 행동강령 / 오답 노트 추가하기';
+    document.getElementById('cancelEditBtn').style.display = 'none';
+    document.getElementById('noteForm').reset();
+    removeUploadedImage();
+    handleCategoryChange('수능/평가원');
+  }
+
+  function saveAndRender() {
+    try {
+      localStorage.setItem('math_review_notes_v3', JSON.stringify(notes));
+    } catch (e) {
+      alert('로컬 저장소 용량이 초과되었습니다. 고용량 이미지를 삭제하거나 조정해주세요.');
+    }
+    renderNotes();
+  }
+
+  // Weakness Auto-Analysis System
+  function renderWeaknessAnalysis() {
+    const subjectNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    const alertBox = document.getElementById('weaknessAlertBox');
+    const rankList = document.getElementById('unitRankList');
+    const info = curriculumData[currentSubject];
+
+    if (!alertBox || !rankList) return;
+
+    if (subjectNotes.length === 0) {
+      alertBox.innerHTML = `
+        <div class="weak-alert" style="background-color: #f8fafc; border-color: #e2e8f0;">
+          <span class="icon">💡</span>
+          <div class="weak-alert-text" style="color: #64748b;">
+            아직 저장된 항목이 없습니다. 행동강령을 등록하시면 영역별 분포를 자동으로 분석해 드립니다!
+          </div>
+        </div>`;
+      rankList.innerHTML = '';
+      return;
+    }
+
+    const unitCounts = {};
+    info.units.forEach(u => unitCounts[u] = 0);
+    subjectNotes.forEach(n => {
+      if (unitCounts[n.unit] !== undefined) {
+        unitCounts[n.unit]++;
+      } else {
+        unitCounts[n.unit] = 1;
+      }
+    });
+
+    let maxCount = 0;
+    let weakestUnits = [];
+    Object.keys(unitCounts).forEach(u => {
+      if (unitCounts[u] > maxCount) {
+        maxCount = unitCounts[u];
+        weakestUnits = [u];
+      } else if (unitCounts[u] === maxCount && maxCount > 0) {
+        weakestUnits.push(u);
+      }
+    });
+
+    if (maxCount > 0) {
+      alertBox.innerHTML = `
+        <div class="weak-alert">
+          <span class="icon">⚠️</span>
+          <div class="weak-alert-text">
+            <strong>[${info.name}] 가장 집중 점검이 필요한 영역:</strong> <br>
+            <strong>${weakestUnits.join(', ')}</strong> 영역에 가장 많은 지침이 등록되어 있습니다! (총 <strong>${maxCount}회</strong> 기록)
+          </div>
+        </div>`;
+    } else {
+      alertBox.innerHTML = '';
+    }
+
+    const maxValForBar = Math.max(...Object.values(unitCounts), 1);
+    const sortedUnits = info.units.map(u => ({ unit: u, count: unitCounts[u] || 0 }))
+                                 .sort((a, b) => b.count - a.count);
+
+    rankList.innerHTML = sortedUnits.map(item => {
+      const percentage = Math.round((item.count / maxValForBar) * 100);
+      const isWeak = item.count > 0 && item.count === maxCount;
+      return `
+        <div class="unit-rank-item ${isWeak ? 'top-weak' : ''}">
+          <span class="unit-rank-title" title="${escapeHtml(item.unit)}">${escapeHtml(item.unit)}</span>
+          <div class="bar-bg">
+            <div class="bar-fill" style="width: ${percentage}%;"></div>
+          </div>
+          <span class="unit-rank-count">
+            ${item.count}회
+          </span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Render Notes
+  function renderNotes() {
+    const listEl = document.getElementById('notesList');
+    const searchVal = document.getElementById('searchInput').value.toLowerCase();
+    const filterUnitVal = document.getElementById('filterUnit').value;
+    const filterCatVal = document.getElementById('filterCat').value;
+    const sortOrder = document.getElementById('sortOrder').value;
+
+    renderWeaknessAnalysis();
+    updateTopicSuggestions();
+
+    const subjectNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    const highCount = subjectNotes.filter(n => n.importance && n.importance.includes('★')).length;
+
+    let filtered = subjectNotes.filter(n => {
+      const matchesUnit = filterUnitVal === 'ALL' || n.unit === filterUnitVal;
+      const matchesCat = filterCatVal === 'ALL' || n.category === filterCatVal;
+      const searchTargets = [
+        n.unit, n.title, n.content, n.sourceDetail, n.category, n.bookTitle, n.bookPage, n.bookQuestion
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      const matchesSearch = searchTargets.includes(searchVal);
+      return matchesUnit && matchesCat && matchesSearch;
+    });
+
+    const info = curriculumData[currentSubject];
+
+    if (sortOrder === 'LATEST') {
+      filtered.sort((a, b) => b.id - a.id);
+    } else if (sortOrder === 'OLDEST') {
+      filtered.sort((a, b) => a.id - b.id);
+    } else if (sortOrder === 'UNIT_ORDER') {
+      filtered.sort((a, b) => {
+        let indexA = info.units.indexOf(a.unit);
+        let indexB = info.units.indexOf(b.unit);
+        if (indexA === -1) indexA = 99;
+        if (indexB === -1) indexB = 99;
+        return indexA - indexB;
+      });
+    } else if (sortOrder === 'IMPORTANCE') {
+      const getStarCount = (imp) => (imp.match(/★/g) || []).length;
+      filtered.sort((a, b) => getStarCount(b.importance) - getStarCount(a.importance));
+    }
+
+    document.getElementById('statTotal').textContent = subjectNotes.length;
+    document.getElementById('statHighCount').textContent = highCount;
+    document.getElementById('statFilteredCount').textContent = filtered.length;
+
+    if (filtered.length === 0) {
+      listEl.innerHTML = `
+        <div class="empty-state">
+          <p>📋 저장된 [${info.name}] 항목이 없습니다.</p>
+          <p style="font-size:0.8rem; margin-top:0.3rem;">좌측 폼을 이용해 실전 행동강령 및 오답 분석을 등록해보세요!</p>
+        </div>`;
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(n => {
+      const sourceBadgeClass = n.category === '교재/N제' ? 'badge-book' : 'badge-category';
+      const displayDetail = n.sourceDetail || n.examYear || '';
+      const imgHtml = n.image ? `<div class="note-image-container"><img src="${n.image}" alt="첨부 이미지" onclick="window.open(this.src)"></div>` : '';
+
+      return `
+        <div class="note-card">
+          <div class="note-header">
+            <div>
+              <div class="note-badges">
+                <span class="badge badge-unit">${escapeHtml(n.unit)}</span>
+                <span class="badge ${sourceBadgeClass}">${escapeHtml(n.category)}</span>
+                ${displayDetail ? `<span class="badge badge-category">${escapeHtml(displayDetail)}</span>` : ''}
+                <span class="badge badge-importance">${escapeHtml(n.importance)}</span>
+              </div>
+              <div class="note-title">${escapeHtml(n.title)}</div>
+            </div>
+          </div>
+          ${imgHtml}
+          <div class="note-section-title" style="margin-top:0.8rem;">💡 행동강령 및 실전지침</div>
+          <div class="note-content-box">${escapeHtml(n.content)}</div>
+          <div class="note-footer">
+            <span>작성일: ${n.createdAt}</span>
+            <div class="note-actions">
+              <button class="btn" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;" onclick="moveNoteUp(${n.id})" title="위로 이동">▲ 위로</button>
+              <button class="btn" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;" onclick="moveNoteDown(${n.id})" title="아래로 이동">▼ 아래로</button>
+              <button class="btn" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="editNote(${n.id})">수정</button>
+              <button class="btn btn-danger" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="deleteNote(${n.id})">삭제</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function deleteNote(id) {
+    if (confirm('이 기록을 삭제하시겠습니까?')) {
+      notes = notes.filter(n => n.id !== id);
+      saveAndRender();
+    }
+  }
+
+  function editNote(id) {
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+
+    if (note.subject !== currentSubject) {
+      switchSubject(note.subject);
+    }
+
+    document.getElementById('unitSelect').value = note.unit;
+    document.getElementById('examCategory').value = note.category;
+    handleCategoryChange(note.category);
+
+    if (note.category === '교재/N제') {
+      if (document.getElementById('bookTitle')) document.getElementById('bookTitle').value = note.bookTitle || '';
+      if (document.getElementById('bookPage')) document.getElementById('bookPage').value = note.bookPage || '';
+      if (document.getElementById('bookQuestion')) document.getElementById('bookQuestion').value = note.bookQuestion || '';
+    } else {
+      if (document.getElementById('examYear')) document.getElementById('examYear').value = note.examYear || note.sourceDetail || '';
+    }
+
+    document.getElementById('importance').value = note.importance;
+    document.getElementById('problemTitle').value = note.title;
+    document.getElementById('noteContent').value = note.content;
+
+    if (note.image) {
+      currentUploadedImageData = note.image;
+      const imgPreview = document.getElementById('imgPreview');
+      const imgPreviewBox = document.getElementById('imgPreviewBox');
+      if (imgPreview && imgPreviewBox) {
+        imgPreview.src = note.image;
+        imgPreviewBox.style.display = 'block';
+      }
+    } else {
+      removeUploadedImage();
+    }
+
+    editingId = id;
+    document.getElementById('submitBtn').textContent = '✏️ 수정 내용 저장하기';
+    document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+  }
+
+  // Simplified & Grouped Word (.doc) Export Function (주제 제거 & 단원별 깔끔 모음)
+  function exportToWord() {
+    if (notes.length === 0) {
+      alert('내보낼 오답 노트 기록이 없습니다.');
+      return;
+    }
+
+    let htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>수학 통합 파이널 실전 행동강령 리포트</title>
+      <style>
+        body { font-family: '맑은 고딕', 'Malgun Gothic', sans-serif; line-height: 1.7; color: #1e293b; padding: 20px; }
+        h1 { color: #dc2626; font-size: 18pt; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 5px; }
+        .sub-header { font-size: 10pt; color: #64748b; margin-bottom: 20px; }
+        h2.subject-title { color: #dc2626; font-size: 14pt; margin-top: 25px; margin-bottom: 12px; background-color: #fef2f2; padding: 6px 12px; border-left: 4px solid #dc2626; }
+        h2.unit-title { color: #b45309; font-size: 12pt; margin-top: 18px; margin-bottom: 8px; background-color: #fffbeb; padding: 5px 10px; border-left: 4px solid #f59e0b; }
+        .unit-box { margin-bottom: 15px; padding: 12px 16px; border: 1px solid #fde68a; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #f59e0b; }
+        .action-item { font-size: 10.5pt; white-space: pre-wrap; color: #1f2937; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #fde68a; }
+        .action-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+      </style>
+      </head>
+      <body>
+        <h1>⚡ 수학 통합 파이널 실전 행동강령 리포트</h1>
+        <div class="sub-header">생성일자: ${new Date().toLocaleDateString('ko-KR')} | 총 ${notes.length}개 항목 수록</div>
+    `;
+
+    const subjects = [
+      { key: 'absolute', title: '🔥 최우선 절대 행동강령' },
+      { key: 'math1', title: '📐 수학 I 행동강령' },
+      { key: 'math2', title: '📈 수학 II 행동강령' },
+      { key: 'stats', title: '🎲 확률과 통계 행동강령' }
+    ];
+
+    subjects.forEach(subj => {
+      const subjNotes = notes.filter(n => (n.subject || 'absolute') === subj.key);
+      if (subjNotes.length > 0) {
+        htmlContent += `<h2 class="subject-title">${subj.title}</h2>`;
+        const info = curriculumData[subj.key];
+        const grouped = {};
+        info.units.forEach(u => { grouped[u] = []; });
+        subjNotes.forEach(n => {
+          if (!grouped[n.unit]) grouped[n.unit] = [];
+          grouped[n.unit].push(n);
+        });
+
+        Object.keys(grouped).forEach(unitName => {
+          const unitItems = grouped[unitName];
+          if (unitItems.length > 0) {
+            htmlContent += `<h2 class="unit-title">📌 ${escapeHtml(unitName)}</h2>`;
+            htmlContent += `<div class="unit-box">`;
+            unitItems.forEach(item => {
+              htmlContent += `
+                <div class="action-item">💡 ${escapeHtml(item.content)}</div>
+              `;
+            });
+            htmlContent += `</div>`;
+          }
+        });
+      }
+    });
+
+    htmlContent += `</body></html>`;
+
+    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `수학통합_행동강령_리포트_${new Date().toISOString().slice(0,10)}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // Export to PDF
+  function exportToPDF() {
+    const currentNotes = notes.filter(n => (n.subject || 'absolute') === currentSubject);
+    if (currentNotes.length === 0) {
+      alert('내보낼 오답 노트 기록이 없습니다.');
+      return;
+    }
+
+    const info = curriculumData[currentSubject];
+    const element = document.getElementById('exportArea');
+    
+    const opt = {
+      margin:       10,
+      filename:     `${info.name}_오답행동강령_${new Date().toISOString().slice(0,10)}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+  }
+
+  window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

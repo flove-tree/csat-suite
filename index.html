@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flove CSAT Study Suite — 통합 학습 대시보드</title>
+<script>
+  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+
+  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
+  async function syncLoadFromCloud() {
+    try {
+      const response = await fetch(SYNC_SERVER_URL);
+      const cloudData = await response.json();
+      if (cloudData && typeof cloudData === 'object') {
+        for (const [key, value] of Object.entries(cloudData)) {
+          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+        }
+        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+    } catch (err) {
+      console.error("불러오기 실패:", err);
+    }
+  }
+
+  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  async function syncSaveToCloud() {
+    try {
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        localData[key] = localStorage.getItem(key);
+      }
+      await fetch(SYNC_SERVER_URL, {
+        method: "POST",
+        body: JSON.stringify(localData)
+      });
+      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+    } catch (err) {
+      console.error("저장 실패:", err);
+    }
+  }
+
+  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
+  window.addEventListener('DOMContentLoaded', async () => {
+    await syncLoadFromCloud();
+  });
+
+  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    originalSetItem.apply(this, arguments);
+    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+  };
+</script>
+
+  <!-- Pretendard Font & FontAwesome Icons & Tailwind CSS -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .hover-lift {
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .hover-lift:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -6px rgba(15, 23, 42, 0.08);
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- Main Navigation Header -->
+  <header class="bg-slate-900 text-white sticky top-0 z-50 shadow-lg border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-3 cursor-pointer" onclick="closeWorkspace()">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-md">
+            F
+          </div>
+          <div>
+            <h1 class="font-black text-base tracking-tight flex items-center gap-2">
+              Flove Study Suite <span class="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">2027 CSAT</span>
+            </h1>
+            <p class="text-[11px] text-slate-400 font-medium">국어·수학·영어·탐구 오답 & 행동강령 워크스페이스</p>
+          </div>
+        </div>
+
+        <!-- Suite Quick Switcher Bar -->
+        <nav class="hidden lg:flex items-center gap-1.5 bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/60 text-xs font-bold">
+          <button onclick="launchTool('korean.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-rose-400">📖</span> 국어
+          </button>
+          <button onclick="launchTool('math.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-blue-400">📐</span> 수학
+          </button>
+          <button onclick="launchTool('eng.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-indigo-400">🔤</span> 영어
+          </button>
+          <button onclick="launchTool('sang.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-purple-400">⚖️</span> 생윤
+          </button>
+          <button onclick="launchTool('samun.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-emerald-400">📊</span> 사문
+          </button>
+          <div class="w-px h-4 bg-slate-700 mx-1"></div>
+          <button onclick="launchTool('plan.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-amber-400">🎯</span> 플래너
+          </button>
+          <button onclick="launchTool('timer.html')" class="px-3 py-1.5 rounded-xl hover:bg-slate-700 text-slate-200 hover:text-white transition flex items-center gap-1.5">
+            <span class="text-orange-400">☕</span> 타이머
+          </button>
+        </nav>
+
+        <!-- Status & Mode Toggle -->
+        <div class="flex items-center gap-3">
+          <div class="hidden sm:flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-medium text-slate-300">
+            <i class="fa-solid fa-clock text-amber-400"></i>
+            <span id="live-clock">00:00:00</span>
+          </div>
+          <button onclick="toggleWorkspaceMode()" id="workspace-mode-btn" class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5">
+            <i class="fa-solid fa-window-maximize"></i> <span id="mode-btn-text">임베드 모드</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Status Banner -->
+  <section class="bg-slate-900 text-white pt-6 pb-12 px-4 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div>
+        <div class="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold mb-3">
+          <i class="fa-solid fa-fire text-xs"></i> 완벽함은 작은 디테일의 누적으로 완성됩니다
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-black tracking-tight">수능 최상위 도약을 위한 7가지 핵심 시스템</h2>
+        <p class="text-slate-400 text-xs sm:text-sm mt-1">각 과목별 오답 행동강령 노트와 플래너, 타이머가 단일 허브에서 실시간 연동됩니다.</p>
+      </div>
+
+      <!-- D-Day Counter Widgets -->
+      <div class="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <div class="bg-slate-800/90 border border-slate-700/80 p-3.5 rounded-2xl min-w-[140px] text-center shadow-md">
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">9월 평가원</p>
+          <p id="dday-9pyung" class="text-xl font-black text-emerald-400 mt-0.5">D-00</p>
+        </div>
+        <div class="bg-slate-800/90 border border-slate-700/80 p-3.5 rounded-2xl min-w-[140px] text-center shadow-md">
+          <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">2027 수능 최종장</p>
+          <p id="dday-suneung" class="text-xl font-black text-amber-400 mt-0.5">D-00</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 -mt-6 flex-grow pb-12">
+
+    <!-- Embedded Workspace Container (Hidden by default) -->
+    <div id="iframe-workspace-container" class="hidden bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden mb-8 transition-all">
+      <div class="bg-slate-900 text-white px-5 py-3 flex items-center justify-between border-b border-slate-800">
+        <div class="flex items-center gap-3">
+          <span id="iframe-tool-icon" class="text-base">📖</span>
+          <span id="iframe-tool-title" class="font-bold text-sm">국어 새기분 오답 & 행동강령 대시보드</span>
+          <span id="iframe-tool-filename" class="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-mono">korean.html</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <a id="iframe-external-link" href="korean.html" target="_blank" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg transition flex items-center gap-1">
+            <i class="fa-solid fa-up-right-from-square text-[10px]"></i> 새 창에서 열기
+          </a>
+          <button onclick="closeWorkspace()" class="px-2.5 py-1 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white text-xs font-bold rounded-lg transition">
+            <i class="fa-solid fa-xmark"></i> 닫기
+          </button>
+        </div>
+      </div>
+      <iframe id="tool-iframe" src="about:blank" class="w-full h-[780px] border-0"></iframe>
+    </div>
+
+    <!-- 7 Core Tools Cards Grid -->
+    <section id="tools-grid-section" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <!-- 1. 국어 (korean.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-rose-500 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl font-black shadow-inner">
+              📖
+            </span>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200">
+              <span id="stat-korean-count">0</span>개 항목
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">국어 [새기분] 대시보드</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">korean.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            강민철 [새기분] 체화용 독서·문학·절대강령 3단계 분석 및 단원/갈래별 Word 리포트 출력
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-100">독서 파이널</span>
+            <span class="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100">문학 갈래별</span>
+            <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">절대강령</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('korean.html')" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="korean.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 2. 수학 (math.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-blue-600 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl font-black shadow-inner">
+              📐
+            </span>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200">
+              <span id="stat-math-count">0</span>개 항목
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">수학 오답 & 행동강령</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">math.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            수학 I · 수학 II · 확률과 통계 약점 자동 분석, 이미지 첨부, 수식 키보드 & PDF/Word 출력
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100">수학 I</span>
+            <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">수학 II</span>
+            <span class="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100">확률과 통계</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('math.html')" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="math.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 3. 영어 (eng.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-indigo-600 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl font-black shadow-inner">
+              🔤
+            </span>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200">
+              <span id="stat-eng-count">0</span>회 시험
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">CSAT English Analyzer</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">eng.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            영어 모의고사 45문항 분석, 9대 유형 오답 통계, 단어 자동 추천, 플래시카드 & 점심시간 음성 TTS
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">오답 통계</span>
+            <span class="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100">4지선다 퀴즈</span>
+            <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">점심 TTS</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('eng.html')" class="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="eng.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 4. 생활과 윤리 (sang.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-purple-600 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center text-xl font-black shadow-inner">
+              ⚖️
+            </span>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200">
+              <span id="stat-sang-count">0</span>개 선지
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">생활과 윤리 교정 노트</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">sang.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            사상가별 선지 수직 교정, 위치 지정 × 표시, 암기 블라인드 모드 & 깔끔 텍스트 Word (.docx) 내보내기
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-100">사상가별 분류</span>
+            <span class="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-100">수직 교정</span>
+            <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">암기 모드</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('sang.html')" class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="sang.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 5. 사회문화 (samun.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-emerald-600 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl font-black shadow-inner">
+              📊
+            </span>
+            <span class="text-xs font-bold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200">
+              <span id="stat-samun-count">0</span>개 항목
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">사회문화 행동강령 노트</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">samun.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            최우선 절대강령, 개념&선지 함정 분석, 계층/사회보장 도표 행동 수칙 정리 & 통합 Word 요약
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">절대강령</span>
+            <span class="text-[10px] font-bold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100">도표 & 통계</span>
+            <span class="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100">긴급 복구 모드</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('samun.html')" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="samun.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 6. 학습 플래너 (plan.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-amber-500 shadow-sm">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl font-black shadow-inner">
+              🎯
+            </span>
+            <span class="text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-full">
+              통합 스튜디오
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">국어·수학 통합 스튜디오</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">plan.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            일자별 로드맵 진도 제어, 미완료 과제 자동 이월, 꿈꾸는 수학 과일나무 정원, 테마 & 자연음 ASMR
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md border border-amber-100">자동 이월</span>
+            <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">나무 성장 정원</span>
+            <span class="text-[10px] font-bold bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-md border border-cyan-100">무드 ASMR</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('plan.html')" class="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="plan.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- 7. 무음 타이머 (timer.html) -->
+      <div class="glass-card p-6 rounded-3xl hover-lift flex flex-col justify-between border-t-4 border-t-orange-500 shadow-sm md:col-span-2 lg:col-span-1">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <span class="w-12 h-12 rounded-2xl bg-orange-100 text-orange-700 flex items-center justify-center text-xl font-black shadow-inner">
+              ☕
+            </span>
+            <span class="text-xs font-bold bg-orange-50 text-orange-800 border border-orange-200 px-2.5 py-1 rounded-full">
+              따스한 온기
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <h3 class="font-extrabold text-lg text-slate-900">따스한 온기 무음 타이머</h3>
+            <span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">timer.html</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-1.5 leading-relaxed font-medium">
+            독서실/스터디카페 무음 모드, 초과 시간 측정 뱃지, 프리셋 칩, 키보드 단축키 조작 & 따스한 동기부여 명언
+          </p>
+          <div class="mt-4 flex flex-wrap gap-1.5">
+            <span class="text-[10px] font-bold bg-orange-50 text-orange-700 px-2 py-0.5 rounded-md border border-orange-100">무음 알림</span>
+            <span class="text-[10px] font-bold bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-100">초과 시간 카운트</span>
+            <span class="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">키보드 단축키</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-100 flex gap-2">
+          <button onclick="launchTool('timer.html')" class="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-rocket"></i> 실행하기
+          </button>
+          <a href="timer.html" target="_blank" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center" title="새 탭에서 열기">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+          </a>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Keyboard Shortcuts Guide Box -->
+    <section class="mt-8 glass-card p-5 rounded-2xl border border-slate-200 text-slate-600 text-xs flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-slate-900 text-white rounded-xl"><i class="fa-solid fa-keyboard"></i></div>
+        <div>
+          <p class="font-bold text-slate-800">단축키 빠른 실행 안내</p>
+          <p class="text-[11px] text-slate-500">대시보드 화면에서 숫자 키를 누르면 해당 과목 도구가 즉시 실행됩니다.</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">1: 국어</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">2: 수학</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">3: 영어</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">4: 생윤</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">5: 사문</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">6: 플래너</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">7: 타이머</span>
+        <span class="px-2 py-1 bg-slate-100 border border-slate-200 rounded font-bold">Esc: 닫기</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900 text-slate-500 text-center py-6 border-t border-slate-800 text-xs">
+    <p>© 2026 Flove CSAT Study Suite. All rights reserved.</p>
+  </footer>
+
+  <script>
+    // --- 1. CORE D-DAY & CLOCK ENGINE ---
+    const TARGET_9PYUNG = new Date(2026, 8, 2); // 2026년 9월 2일
+    const TARGET_SUNEUNG = new Date(2026, 10, 19); // 2026년 11월 19일
+
+    function updateLiveClock() {
+      const now = new Date();
+      const clockEl = document.getElementById('live-clock');
+      if (clockEl) {
+        clockEl.textContent = now.toLocaleTimeString('ko-KR', { hour12: false });
+      }
+    }
+    setInterval(updateLiveClock, 1000);
+    updateLiveClock();
+
+    function calculateDDay(targetDate) {
+      const now = new Date();
+      const d1 = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      const d2 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffDays = Math.ceil((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return "D-Day";
+      return diffDays > 0 ? "D-" + diffDays : "D+" + Math.abs(diffDays);
+    }
+
+    document.getElementById('dday-9pyung').textContent = calculateDDay(TARGET_9PYUNG);
+    document.getElementById('dday-suneung').textContent = calculateDDay(TARGET_SUNEUNG);
+
+    // --- 2. LOCALSTORAGE STATS ENGINE ---
+    function updateCountsFromStorage() {
+      // 1. 국어 (saegibun_notes_v3)
+      try {
+        const kData = JSON.parse(localStorage.getItem('saegibun_notes_v3') || '[]');
+        document.getElementById('stat-korean-count').textContent = kData.length;
+      } catch(e) {}
+
+      // 2. 수학 (math_review_notes_v3)
+      try {
+        const mData = JSON.parse(localStorage.getItem('math_review_notes_v3') || '[]');
+        document.getElementById('stat-math-count').textContent = mData.length;
+      } catch(e) {}
+
+      // 3. 영어 (english_exam_logs_v14)
+      try {
+        const eData = JSON.parse(localStorage.getItem('english_exam_logs_v14') || '[]');
+        document.getElementById('stat-eng-count').textContent = eData.length;
+      } catch(e) {}
+
+      // 4. 생윤 (liv_ethic_notes_v11)
+      try {
+        const sData = JSON.parse(localStorage.getItem('liv_ethic_notes_v11') || '[]');
+        document.getElementById('stat-sang-count').textContent = sData.length;
+      } catch(e) {}
+
+      // 5. 사문 (samun_notes_v1)
+      try {
+        const smData = JSON.parse(localStorage.getItem('samun_notes_v1') || '[]');
+        document.getElementById('stat-samun-count').textContent = smData.length;
+      } catch(e) {}
+    }
+    updateCountsFromStorage();
+
+    // --- 3. WORKSPACE LAUNCH & IFRAME CONTROLLER ---
+    let isIframeMode = false;
+
+    const toolMeta = {
+      'korean.html': { title: '국어 [새기분] 오답 & 행동강령 대시보드', icon: '📖' },
+      'math.html': { title: '수학 오답 & 행동강령 통합 대시보드', icon: '📐' },
+      'eng.html': { title: 'CSAT English Analyzer v14', icon: '🔤' },
+      'sang.html': { title: '생활과 윤리 오답 선지 교정 노트', icon: '⚖️' },
+      'samun.html': { title: '사회문화 오답 & 행동강령 대시보드', icon: '📊' },
+      'plan.html': { title: 'Flove 국어·수학 통합 스튜디오', icon: '🎯' },
+      'timer.html': { title: '따스한 온기 무음 타이머', icon: '☕' }
+    };
+
+    function toggleWorkspaceMode() {
+      isIframeMode = !isIframeMode;
+      const btnText = document.getElementById('mode-btn-text');
+      if (isIframeMode) {
+        btnText.textContent = "페이지 이동 모드";
+      } else {
+        btnText.textContent = "임베드 모드";
+        closeWorkspace();
+      }
+    }
+
+    function launchTool(filename) {
+      if (isIframeMode) {
+        const container = document.getElementById('iframe-workspace-container');
+        const iframe = document.getElementById('tool-iframe');
+        const titleEl = document.getElementById('iframe-tool-title');
+        const iconEl = document.getElementById('iframe-tool-icon');
+        const fnEl = document.getElementById('iframe-tool-filename');
+        const extLink = document.getElementById('iframe-external-link');
+
+        const meta = toolMeta[filename] || { title: filename, icon: '🚀' };
+
+        titleEl.textContent = meta.title;
+        iconEl.textContent = meta.icon;
+        fnEl.textContent = filename;
+        extLink.href = filename;
+        iframe.src = filename;
+
+        container.classList.remove('hidden');
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.location.href = filename;
+      }
+    }
+
+    function closeWorkspace() {
+      const container = document.getElementById('iframe-workspace-container');
+      const iframe = document.getElementById('tool-iframe');
+      if (container) container.classList.add('hidden');
+      if (iframe) iframe.src = 'about:blank';
+    }
+
+    // --- 4. GLOBAL KEYBOARD SHORTCUTS ---
+    window.addEventListener('keydown', function(e) {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+
+      if (e.key === '1') launchTool('korean.html');
+      else if (e.key === '2') launchTool('math.html');
+      else if (e.key === '3') launchTool('eng.html');
+      else if (e.key === '4') launchTool('sang.html');
+      else if (e.key === '5') launchTool('samun.html');
+      else if (e.key === '6') launchTool('plan.html');
+      else if (e.key === '7') launchTool('timer.html');
+      else if (e.key === 'Escape') closeWorkspace();
+    });
+  </script>
+</body>
+</html>

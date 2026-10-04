@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>따스한 온기 무음 타이머</title>
+<script>
+  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+
+  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
+  async function syncLoadFromCloud() {
+    try {
+      const response = await fetch(SYNC_SERVER_URL);
+      const cloudData = await response.json();
+      if (cloudData && typeof cloudData === 'object') {
+        for (const [key, value] of Object.entries(cloudData)) {
+          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+        }
+        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+    } catch (err) {
+      console.error("불러오기 실패:", err);
+    }
+  }
+
+  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  async function syncSaveToCloud() {
+    try {
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        localData[key] = localStorage.getItem(key);
+      }
+      await fetch(SYNC_SERVER_URL, {
+        method: "POST",
+        body: JSON.stringify(localData)
+      });
+      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+    } catch (err) {
+      console.error("저장 실패:", err);
+    }
+  }
+
+  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
+  window.addEventListener('DOMContentLoaded', async () => {
+    await syncLoadFromCloud();
+  });
+
+  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    originalSetItem.apply(this, arguments);
+    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+  };
+</script>
+
+    <!-- 구글 폰트: 고운바탕, Noto Sans KR -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #FAF6F0;
+            --card-bg: #FFFFFF;
+            --text-main: #4A3E3D;
+            --text-sub: #8C7A7B;
+            --primary: #D97757;
+            --primary-hover: #C56343;
+            --secondary: #F3E8DF;
+            --secondary-hover: #E8D8CA;
+            --accent-glow: rgba(217, 119, 87, 0.25);
+            --border-color: #EFE6DD;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            transition: background-color 0.8s ease;
+        }
+
+        /* 타이머 완료 시 고정된 온기 색상 유지 (깜빡임 애니메이션 제거) */
+        body.finished-bg {
+            background-color: #FCEBE6;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+            background: var(--card-bg);
+            border-radius: 32px;
+            padding: 40px 30px;
+            box-shadow: 0 20px 40px rgba(74, 62, 61, 0.05);
+            border: 1px solid var(--border-color);
+            text-align: center;
+            position: relative;
+            transition: all 0.5s ease;
+        }
+
+        .container.finished-card {
+            box-shadow: 0 0 35px 10px rgba(232, 90, 60, 0.25);
+        }
+
+        /* 헤더 & 응원 메시지 */
+        header h1 {
+            font-family: 'Gowun Batang', serif;
+            font-size: 1.8rem;
+            color: var(--primary);
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .quote-box {
+            background-color: var(--secondary);
+            border-radius: 18px;
+            padding: 12px 24px;
+            margin: 16px 0 28px;
+            height: 68px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .quote-text {
+            font-family: 'Gowun Batang', serif;
+            font-size: 0.98rem;
+            color: var(--text-main);
+            line-height: 1.45;
+            word-break: keep-all;
+            text-align: center;
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .quote-text.fade-out {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+
+        /* 중앙 시계 영역 */
+        .clock-wrapper {
+            position: relative;
+            width: 310px;
+            height: 310px;
+            margin: 0 auto 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.5s ease;
+        }
+
+        .svg-ring {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .circle-bg {
+            fill: none;
+            stroke: var(--secondary);
+            stroke-width: 12;
+        }
+
+        .circle-progress {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 879.64;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 0.8s linear, stroke 0.3s ease;
+        }
+
+        .clock-inner {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .timer-display {
+            font-family: 'Gowun Batang', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: 1px;
+            transition: font-size 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .status-badge {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            background: var(--bg-color);
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-top: 6px;
+        }
+
+        /* 타이머 종료 후 나타나는 초과 시간 뱃지 */
+        .overtime-badge {
+            display: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #E85A3C;
+            background-color: #FFF0EB;
+            border: 1px solid #FCD7C7;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-top: 6px;
+            animation: fadeIn 0.4s ease;
+        }
+
+        /* 미세 조율 (+1분 / -1분) 버튼 */
+        .quick-adjust-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .btn-adjust {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-adjust:hover {
+            background-color: var(--secondary);
+            border-color: var(--primary);
+        }
+
+        /* 시간 직접 설정 영역 */
+        .setting-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: var(--bg-color);
+            padding: 12px;
+            border-radius: 16px;
+        }
+
+        .time-input-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        .time-input-group input {
+            width: 58px;
+            padding: 6px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            background: #FFF;
+            outline: none;
+        }
+
+        .time-input-group input::placeholder {
+            color: #C8BBB3;
+            opacity: 1;
+            font-weight: 300;
+        }
+
+        .time-input-group input:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-set {
+            background: var(--text-main);
+            color: #FFF;
+            border: none;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-set:hover {
+            background: var(--primary);
+        }
+
+        /* 프리셋 칩 */
+        .preset-group {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .chip {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-sub);
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background-color: var(--secondary);
+        }
+
+        /* 제어 버튼 그룹 */
+        .control-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn-main {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px var(--accent-glow);
+            transition: all 0.2s ease;
+        }
+
+        .btn-main:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-sub {
+            background-color: var(--secondary);
+            color: var(--text-main);
+            border: none;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sub:hover {
+            background-color: var(--secondary-hover);
+        }
+
+        /* 단축키 안내 힌트 */
+        .shortcut-hint {
+            margin-top: 18px;
+            font-size: 0.78rem;
+            color: var(--text-sub);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px 14px;
+            opacity: 0.85;
+        }
+
+        .shortcut-hint kbd {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: inherit;
+            font-size: 0.75rem;
+            color: var(--text-main);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* 무음 타이머 종료 알림 배너 */
+        .finish-banner {
+            display: none;
+            margin-top: 20px;
+            background-color: #FFF3ED;
+            border: 1px solid #FCD7C7;
+            padding: 16px;
+            border-radius: 16px;
+            color: var(--primary);
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .finish-banner h3 {
+            font-family: 'Gowun Batang', serif;
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+        }
+
+        .finish-banner p {
+            font-size: 0.88rem;
+            color: var(--text-main);
+        }
+
+        .finished-pulse {
+            box-shadow: 0 0 20px 8px rgba(217, 119, 87, 0.2);
+            border-radius: 50%;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+<!-- Universal Navigation Bar Header -->
+<nav style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-family: Pretendard, sans-serif; font-size: 13px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 9999;">
+  <div style="display: flex; align-items: center; gap: 8px; font-weight: 800;">
+    <a href="index.html" style="color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #0284c7; color: #ffffff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">F</span>
+      <span>Flove Suite</span>
+    </a>
+  </div>
+  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+    <a href="korean.html" style="color: #f43f5e; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(244,63,94,0.12); font-weight: 700;">📖 국어</a>
+    <a href="math.html" style="color: #3b82f6; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(59,130,246,0.12); font-weight: 700;">📐 수학</a>
+    <a href="eng.html" style="color: #6366f1; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); font-weight: 700;">🔤 영어</a>
+    <a href="sang.html" style="color: #a855f7; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(168,85,247,0.12); font-weight: 700;">⚖️ 생윤</a>
+    <a href="samun.html" style="color: #10b981; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); font-weight: 700;">📊 사문</a>
+    <span style="color: #334155;">|</span>
+    <a href="plan.html" style="color: #f59e0b; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.12); font-weight: 700;">🎯 플래너</a>
+    <a href="timer.html" style="color: #f97316; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(249,115,22,0.12); font-weight: 700;">☕ 타이머</a>
+  </div>
+</nav>
+
+    <div class="container" id="mainContainer">
+        <header>
+            <h1>따스한 온기 타이머</h1>
+            <div class="quote-box">
+                <span class="quote-text" id="quoteDisplay">오늘 흘리는 땀방울은 내일의 단단한 꽃이 됩니다.</span>
+            </div>
+        </header>
+
+        <!-- 중앙 시계 영역 -->
+        <div class="clock-wrapper" id="clockWrapper">
+            <svg class="svg-ring" viewBox="0 0 320 320">
+                <circle class="circle-bg" cx="160" cy="160" r="140"></circle>
+                <circle class="circle-progress" id="progressRing" cx="160" cy="160" r="140"></circle>
+            </svg>
+            <div class="clock-inner">
+                <div class="timer-display" id="timerDisplay">25:00</div>
+                <div class="status-badge" id="statusBadge">준비됨</div>
+                <div class="overtime-badge" id="overtimeBadge">+00:00 초과</div>
+            </div>
+        </div>
+
+        <!-- 1분 추가 / 1분 차감 버튼 -->
+        <div class="quick-adjust-group">
+            <button class="btn-adjust" onclick="adjustTime(-60)">-1분</button>
+            <button class="btn-adjust" onclick="adjustTime(60)">+1분</button>
+            <button class="btn-adjust" onclick="adjustTime(300)">+5분</button>
+        </div>
+
+        <!-- 시간 직접 설정 -->
+        <div class="setting-section">
+            <div class="time-input-group">
+                <input type="number" id="inputMin" placeholder="25" min="0" max="180"> 분
+                <input type="number" id="inputSec" placeholder="00" min="0" max="59"> 초
+            </div>
+            <button class="btn-set" onclick="setCustomTime()">시간 설정</button>
+        </div>
+
+        <!-- 프리셋 칩 -->
+        <div class="preset-group">
+            <button class="chip" onclick="applyPreset(15)">15분</button>
+            <button class="chip" onclick="applyPreset(25)">25분</button>
+            <button class="chip" onclick="applyPreset(50)">50분</button>
+            <button class="chip" onclick="applyPreset(60)">60분</button>
+        </div>
+
+        <!-- 메인 제어 버튼 -->
+        <div class="control-group">
+            <button class="btn-main" id="startBtn" onclick="toggleTimer()">시작</button>
+            <button class="btn-sub" onclick="restartTimer()">재시작</button>
+            <button class="btn-sub" onclick="resetTimer()">재설정</button>
+        </div>
+
+        <!-- 단축키 안내 힌트 -->
+        <div class="shortcut-hint">
+            <span>시작/일시정지: <kbd>Space</kbd></span>
+            <span>재시작: <kbd>,</kbd></span>
+            <span>재설정: <kbd>.</kbd></span>
+            <span>시간조절: <kbd>↑</kbd><kbd>↓</kbd> 5분 / <kbd>←</kbd><kbd>→</kbd> 30초</span>
+        </div>
+
+        <!-- 무음 타이머 종료 알림 배너 -->
+        <div class="finish-banner" id="finishBanner">
+            <h3>☕️ 소중한 몰입 시간이 끝났습니다</h3>
+            <p>오늘도 정말 수고 많으셨어요. 잠시 기지개를 켜고 숨을 고르세요.</p>
+        </div>
+    </div>
+
+    <script>
+        const quotes = [
+            "오늘 흘리는 땀방울은 내일의 단단한 꽃이 됩니다.",
+            "지친 순간에도 당신은 차근차근 빛나고 있어요.",
+            "조금 천천히 가도 괜찮아요. 끝까지 포기하지 않는 당신이 대단합니다.",
+            "잠시 숨을 고르고, 당신만의 속도로 걸어가세요.",
+            "오늘 하루도 여기까지 견뎌낸 스스로를 다정하게 안아주세요.",
+            "당신이 쏟은 모든 노력은 결코 당신을 배신하지 않습니다.",
+            "포근한 마음으로 한 걸음씩, 잘해내고 있어요."
+        ];
+
+        let quoteIndex = 0;
+        function rotateQuote() {
+            const quoteEl = document.getElementById('quoteDisplay');
+            quoteEl.classList.add('fade-out');
+            
+            setTimeout(() => {
+                quoteIndex = (quoteIndex + 1) % quotes.length;
+                quoteEl.textContent = quotes[quoteIndex];
+                quoteEl.classList.remove('fade-out');
+            }, 600);
+        }
+        setInterval(rotateQuote, 10000);
+
+        let initialSeconds = 1500;
+        let remainingSeconds = 1500;
+        let isRunning = false;
+        let isFinished = false;
+        let overtimeSeconds = 0;
+        let timerInterval = null;
+        let overtimeInterval = null;
+
+        const CIRCUMFERENCE = 2 * Math.PI * 140;
+        const progressRing = document.getElementById('progressRing');
+        const timerDisplay = document.getElementById('timerDisplay');
+        const statusBadge = document.getElementById('statusBadge');
+        const overtimeBadge = document.getElementById('overtimeBadge');
+        const startBtn = document.getElementById('startBtn');
+        const finishBanner = document.getElementById('finishBanner');
+        const clockWrapper = document.getElementById('clockWrapper');
+        const mainContainer = document.getElementById('mainContainer');
+
+        const inputMin = document.getElementById('inputMin');
+        const inputSec = document.getElementById('inputSec');
+
+        // 분/초 입력창에서 Enter 키 누를 시 자동으로 시간 설정 실행
+        [inputMin, inputSec].forEach(inputEl => {
+            inputEl.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    setCustomTime();
+                }
+            });
+        });
+
+        // 전역 단축키 핸들러 (Space: 토글/종료시재설정, ,: 재시작, .: 재설정, 방향키: 시간 조절)
+        window.addEventListener('keydown', function(event) {
+            if (document.activeElement.tagName === 'INPUT') return;
+
+            if (event.code === 'Space' || event.key === ' ') {
+                event.preventDefault();
+                toggleTimer();
+            } else if (event.key === ',' || event.code === 'Comma') {
+                event.preventDefault();
+                restartTimer();
+            } else if (event.key === '.' || event.code === 'Period') {
+                event.preventDefault();
+                resetTimer();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                adjustTime(300); // 5분 추가
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                adjustTime(-300); // 5분 감소
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                adjustTime(-30); // 30초 감소
+            } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                adjustTime(30); // 30초 추가
+            }
+        });
+
+        progressRing.style.strokeDasharray = `${CIRCUMFERENCE} ${CIRCUMFERENCE}`;
+
+        function updateDisplay() {
+            const h = Math.floor(remainingSeconds / 3600);
+            const m = Math.floor((remainingSeconds % 3600) / 60);
+            const s = remainingSeconds % 60;
+
+            if (h > 0) {
+                timerDisplay.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                timerDisplay.style.fontSize = '2.55rem';
+                timerDisplay.style.letterSpacing = '0px';
+            } else {
+                timerDisplay.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                timerDisplay.style.fontSize = '3.5rem';
+                timerDisplay.style.letterSpacing = '1px';
+            }
+
+            if (initialSeconds > 0) {
+                const fraction = remainingSeconds / initialSeconds;
+                const offset = CIRCUMFERENCE - (fraction * CIRCUMFERENCE);
+                progressRing.style.strokeDashoffset = offset;
+            } else {
+                progressRing.style.strokeDashoffset = CIRCUMFERENCE;
+            }
+        }
+
+        function updateOvertimeDisplay() {
+            const m = Math.floor(overtimeSeconds / 60);
+            const s = overtimeSeconds % 60;
+            overtimeBadge.textContent = `+${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} 초과`;
+        }
+
+        function toggleTimer() {
+            if (isFinished) {
+                restartTimer();
+                return;
+            }
+
+            if (remainingSeconds <= 0) return;
+            
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            isRunning = true;
+            startBtn.textContent = '일시정지';
+            startBtn.style.backgroundColor = '#8C7A7B';
+            statusBadge.textContent = '집중 중...';
+            hideFinishAlert();
+
+            timerInterval = setInterval(() => {
+                if (remainingSeconds > 0) {
+                    remainingSeconds--;
+                    updateDisplay();
+                } else {
+                    pauseTimer();
+                    onFinished();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            clearInterval(timerInterval);
+            startBtn.textContent = '시작';
+            startBtn.style.backgroundColor = 'var(--primary)';
+            if (remainingSeconds > 0 && !isFinished) {
+                statusBadge.textContent = '일시정지됨';
+            }
+        }
+
+        function adjustTime(secondsToAdd) {
+            remainingSeconds = Math.max(0, remainingSeconds + secondsToAdd);
+            if (remainingSeconds > initialSeconds) {
+                initialSeconds = remainingSeconds;
+            }
+            updateDisplay();
+        }
+
+        function restartTimer() {
+            pauseTimer();
+            remainingSeconds = initialSeconds;
+            statusBadge.textContent = '재시작 준비됨';
+            hideFinishAlert();
+            updateDisplay();
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            initialSeconds = 0;
+            remainingSeconds = 0;
+            inputMin.value = '';
+            inputSec.value = '';
+            statusBadge.textContent = '초기화됨';
+            hideFinishAlert();
+            updateDisplay();
+        }
+
+        function setCustomTime() {
+            const min = parseInt(inputMin.value) || 0;
+            const sec = parseInt(inputSec.value) || 0;
+            const totalSec = (min * 60) + sec;
+
+            if (totalSec <= 0) return;
+
+            pauseTimer();
+            initialSeconds = totalSec;
+            remainingSeconds = totalSec;
+            statusBadge.textContent = '시간 설정됨';
+            hideFinishAlert();
+            updateDisplay();
+
+            inputMin.blur();
+            inputSec.blur();
+        }
+
+        function applyPreset(minutes) {
+            pauseTimer();
+            initialSeconds = minutes * 60;
+            remainingSeconds = minutes * 60;
+            statusBadge.textContent = `${minutes}분 설정됨`;
+            hideFinishAlert();
+            updateDisplay();
+        }
+
+        function onFinished() {
+            isFinished = true;
+            overtimeSeconds = 0;
+            statusBadge.textContent = '완료!';
+            finishBanner.style.display = 'block';
+            overtimeBadge.style.display = 'inline-block';
+            updateOvertimeDisplay();
+
+            clockWrapper.classList.add('finished-pulse');
+            document.body.classList.add('finished-bg');
+            mainContainer.classList.add('finished-card');
+
+            overtimeInterval = setInterval(() => {
+                overtimeSeconds++;
+                updateOvertimeDisplay();
+            }, 1000);
+        }
+
+        function hideFinishAlert() {
+            isFinished = false;
+            clearInterval(overtimeInterval);
+            overtimeSeconds = 0;
+
+            finishBanner.style.display = 'none';
+            overtimeBadge.style.display = 'none';
+            clockWrapper.classList.remove('finished-pulse');
+            document.body.classList.remove('finished-bg');
+            mainContainer.classList.remove('finished-card');
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flove의 국어·수학 통합 스튜디오</title>
+<script>
+  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+
+  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
+  async function syncLoadFromCloud() {
+    try {
+      const response = await fetch(SYNC_SERVER_URL);
+      const cloudData = await response.json();
+      if (cloudData && typeof cloudData === 'object') {
+        for (const [key, value] of Object.entries(cloudData)) {
+          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+        }
+        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+    } catch (err) {
+      console.error("불러오기 실패:", err);
+    }
+  }
+
+  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  async function syncSaveToCloud() {
+    try {
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        localData[key] = localStorage.getItem(key);
+      }
+      await fetch(SYNC_SERVER_URL, {
+        method: "POST",
+        body: JSON.stringify(localData)
+      });
+      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+    } catch (err) {
+      console.error("저장 실패:", err);
+    }
+  }
+
+  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
+  window.addEventListener('DOMContentLoaded', async () => {
+    await syncLoadFromCloud();
+  });
+
+  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
+  const originalSetItem = localStorage.setItem;
+  localStorage.setItem = function(key, value) {
+    originalSetItem.apply(this, arguments);
+    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+  };
+</script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; transition: background-color 0.4s ease, background-image 0.4s ease; background-repeat: repeat; background-position: center; }
+        .card-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03); }
+        
+        :root {
+            --theme-primary: #22c55e;
+            --theme-primary-dark: #16a34a;
+            --theme-bg-light: #f0fdf4;
+            --theme-border: #dcfce7;
+        }
+
+        .dynamic-bg { background-color: var(--theme-primary); }
+        .dynamic-bg-hover:hover { background-color: var(--theme-primary-dark); }
+        .dynamic-text { color: var(--theme-primary); }
+        .dynamic-border { border-color: var(--theme-primary); }
+        .dynamic-bg-light { background-color: var(--theme-bg-light); }
+        .dynamic-border-light { border-color: var(--theme-border); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        .tree-pulse { animation: pulse-slow 3s infinite ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+<!-- Universal Navigation Bar Header -->
+<nav style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-family: Pretendard, sans-serif; font-size: 13px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 9999;">
+  <div style="display: flex; align-items: center; gap: 8px; font-weight: 800;">
+    <a href="index.html" style="color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #0284c7; color: #ffffff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">F</span>
+      <span>Flove Suite</span>
+    </a>
+  </div>
+  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+    <a href="korean.html" style="color: #f43f5e; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(244,63,94,0.12); font-weight: 700;">📖 국어</a>
+    <a href="math.html" style="color: #3b82f6; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(59,130,246,0.12); font-weight: 700;">📐 수학</a>
+    <a href="eng.html" style="color: #6366f1; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); font-weight: 700;">🔤 영어</a>
+    <a href="sang.html" style="color: #a855f7; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(168,85,247,0.12); font-weight: 700;">⚖️ 생윤</a>
+    <a href="samun.html" style="color: #10b981; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); font-weight: 700;">📊 사문</a>
+    <span style="color: #334155;">|</span>
+    <a href="plan.html" style="color: #f59e0b; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.12); font-weight: 700;">🎯 플래너</a>
+    <a href="timer.html" style="color: #f97316; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(249,115,22,0.12); font-weight: 700;">☕ 타이머</a>
+  </div>
+</nav>
+    <!-- Header -->
+    <header id="main-header" class="text-white py-5 px-4 shadow-md transition-all duration-500">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-black tracking-tight flex items-center gap-2">🎯 Flove의 국어·수학 융합 스튜디오</h1>
+                <p id="sub-header-text" class="text-white/70 text-xs mt-0.5 font-medium">영역별 완전 독립 박스로 정렬된 오차 제로 학습 공간</p>
+            </div>
+            <div class="flex items-center gap-3 text-center">
+                <!-- Streak Badge -->
+                <div class="bg-white/10 text-orange-400 border border-white/10 px-3.5 py-1.5 rounded-xl flex items-center gap-2 backdrop-blur-md">
+                    <span class="text-base">🔥</span>
+                    <div class="text-left">
+                        <p class="text-[9px] text-slate-300 font-bold uppercase leading-none">연속 완주</p>
+                        <p class="text-sm font-black text-white leading-none mt-1"><span id="streak-count">0</span>일 연속</p>
+                    </div>
+                </div>
+                <div class="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10">
+                    <p class="text-[9px] text-white/80 font-bold uppercase">9평 기준점</p>
+                    <p id="dday-9" class="text-sm font-extrabold text-emerald-300">D-54</p>
+                </div>
+                <div class="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10">
+                    <p class="text-[9px] text-white/80 font-bold uppercase">수능 최종장</p>
+                    <p id="dday-sat" class="text-sm font-extrabold text-amber-300">D-132</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-grow max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Sidebar -->
+        <aside class="lg:col-span-4 flex flex-col gap-6">
+            
+            <!-- Unified Control Panel -->
+            <div id="theme-panel" class="bg-white p-5 rounded-2xl border border-slate-100 card-shadow transition-colors duration-500">
+                <h3 class="font-bold text-slate-700 text-xs uppercase tracking-wider mb-3 flex items-center gap-2" id="theme-title-text">
+                    ⚙️ 통합 무드 & 타이머 컨트롤러
+                </h3>
+                
+                <!-- Theme Presets Selection -->
+                <div class="grid grid-cols-1 gap-1.5 mb-3">
+                    <button onclick="selectThemePreset('clover')" class="w-full py-2 px-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <span>🍀 행운의 네잎클로버 (숲속 잎새 바람 소리)</span>
+                        <span class="w-3.5 h-3.5 rounded-full bg-emerald-500 border border-white shadow-sm"></span>
+                    </button>
+                    <button onclick="selectThemePreset('cherry')" class="w-full py-2 px-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between bg-rose-50 text-rose-700 border-rose-200">
+                        <span>🌸 설레는 체리블라썸 (빈티지 오디오)</span>
+                        <span class="w-3.5 h-3.5 rounded-full bg-rose-400 border border-white shadow-sm"></span>
+                    </button>
+                    <button onclick="selectThemePreset('cyber')" class="w-full py-2 px-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between bg-slate-900 text-cyan-400 border-cyan-900/50">
+                        <span>🌌 사이버펑크 네온시티 (사운드 없음 🔇)</span>
+                        <span class="w-3.5 h-3.5 rounded-full bg-cyan-400 border border-white shadow-sm"></span>
+                    </button>
+                    <button onclick="selectThemePreset('midnight')" class="w-full py-2 px-3 rounded-xl border text-left text-xs font-bold flex items-center justify-between bg-slate-800 text-amber-400 border-slate-700">
+                        <span>🌙 한밤의 아늑한 서재 (타닥타닥 장작 모닥불 🔥)</span>
+                        <span class="w-3.5 h-3.5 rounded-full bg-amber-500 border border-white shadow-sm"></span>
+                    </button>
+                </div>
+
+                <!-- Custom Color Picker Spectrum Row -->
+                <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 mb-4">
+                    <span class="text-[11px] font-bold text-slate-500">🎨 스펙트럼 팔레트 자유 색상 선택</span>
+                    <input type="color" id="theme-color-picker" onchange="applyCustomHex(this.value)" 
+                           class="w-7 h-7 border-0 rounded-lg cursor-pointer bg-transparent">
+                </div>
+
+                <!-- Integrated ASMR & Pomodoro Bar -->
+                <div class="bg-slate-50/80 p-3 rounded-xl border border-slate-200/60 flex flex-col gap-2.5">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-sm">⏱️</span>
+                            <span id="pomodoro-timer-text" class="text-sm font-mono font-black text-slate-700">25:00</span>
+                            <span id="pomo-mode-badge" class="text-[9px] px-1.5 py-0.5 rounded font-bold bg-slate-200 text-slate-600">집중</span>
+                        </div>
+                        <div class="flex gap-1.5">
+                            <button onclick="togglePomodoro()" id="pomo-btn" class="text-[10px] dynamic-bg text-white px-2.5 py-1 rounded-md font-bold hover:opacity-90">시작</button>
+                            <button onclick="resetPomodoro()" class="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded-md font-bold hover:bg-slate-300">리셋</button>
+                        </div>
+                    </div>
+                    <div class="h-px bg-slate-200/80"></div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-slate-400 font-bold">무드 전용 자연음 ASMR 엔진</span>
+                        <button onclick="toggleASMR()" id="asmr-btn" class="text-[10px] border border-slate-300 text-slate-600 bg-white px-3 py-1 rounded-md font-bold flex items-center gap-1 hover:bg-slate-50">
+                            🔇 사운드 OFF
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date Selector -->
+            <div id="date-panel" class="bg-white rounded-2xl border border-slate-100 card-shadow flex flex-col h-[350px] transition-colors duration-500">
+                <div class="p-3 border-b border-slate-100 bg-slate-50/50 rounded-t-2xl flex justify-between items-center">
+                    <span class="font-bold text-slate-700 text-xs uppercase tracking-wider">일자별 로드맵</span>
+                    <button onclick="jumpToToday()" class="text-[10px] dynamic-bg-light dynamic-text px-2 py-0.5 rounded font-bold hover:opacity-80">오늘</button>
+                </div>
+                <div id="date-list" class="flex-grow overflow-y-auto p-2 space-y-1">
+                    <!-- Dynamic Loading Base -->
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Right Side -->
+        <section class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Garden Widget -->
+            <div id="garden-panel" class="bg-white p-5 rounded-2xl border border-slate-100 card-shadow grid grid-cols-1 md:grid-cols-12 gap-5 items-center transition-colors duration-500">
+                <div class="md:col-span-3 flex flex-col items-center justify-center border-r border-slate-100/80 pr-2">
+                    <div class="w-24 h-24 rounded-full bg-gradient-to-b from-white to-slate-50 border border-slate-200/50 flex items-center justify-center relative overflow-hidden shadow-inner">
+                        <div id="tree-emoji" class="text-4xl tree-pulse select-none">🌱</div>
+                    </div>
+                    <span id="tree-status-badge" class="mt-2.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold dynamic-bg-light dynamic-text">씨앗 (0%)</span>
+                </div>
+                <div class="md:col-span-9">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🌳</span>
+                        <h3 class="font-black text-slate-800 text-sm" id="garden-title-text">플로브의 꿈꾸는 수학 과일 나무</h3>
+                    </div>
+                    <p id="tree-message" class="text-slate-400 text-xs mt-1.5 leading-relaxed font-medium">진도를 격파하여 나무를 진화시키세요!</p>
+                    <div class="mt-3">
+                        <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-0.5">
+                            <span>나무 성장도</span>
+                            <span id="tree-growth-percent" class="dynamic-text">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                            <div id="tree-growth-bar" class="dynamic-bg h-1.5 rounded-full transition-all duration-700" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Dashboard -->
+            <div id="stats-panel" class="bg-white p-4 rounded-2xl border border-slate-100 card-shadow transition-colors duration-500">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">시발점 완강률</span>
+                        <div class="flex items-baseline gap-1.5 mt-0.5"><span id="concept-percent" class="text-lg font-black dynamic-text">0%</span><span id="concept-fraction" class="text-[9px] text-slate-400 font-bold">0/0</span></div>
+                    </div>
+                    <div class="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">수분감 격파율</span>
+                        <div class="flex items-baseline gap-1.5 mt-0.5"><span id="gichul-percent" class="text-lg font-black text-emerald-500">0%</span><span id="gichul-fraction" class="text-[9px] text-slate-400 font-bold">0/0</span></div>
+                    </div>
+                    <div class="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">새기분 국어율 📚</span>
+                        <div class="flex items-baseline gap-1.5 mt-0.5"><span id="korean-percent" class="text-lg font-black text-cyan-500">0%</span><span id="korean-fraction" class="text-[9px] text-slate-400 font-bold">0/0</span></div>
+                    </div>
+                    <div class="bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">플랜 전체 진행률</span>
+                        <div class="flex items-baseline gap-1.5 mt-0.5"><span id="total-percent" class="text-lg font-black text-amber-500">0%</span><span id="total-fraction" class="text-[9px] text-slate-400 font-bold">0/0</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks Module -->
+            <div id="tasks-panel" class="bg-white p-6 rounded-2xl border border-slate-100 card-shadow flex-grow flex flex-col min-h-[350px] transition-colors duration-500">
+                <div class="border-b border-slate-100 pb-3 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-2 whitespace-nowrap">
+                            <button onclick="changeDay(-1)" class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-90 select-none shrink-0" title="이전날">
+                                ◀
+                            </button>
+                            <h2 id="current-display-date" class="text-lg font-black text-slate-800 whitespace-nowrap">2026년 7월 10일</h2>
+                            <button onclick="changeDay(1)" class="w-7 h-7 flex items-center justify-center text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-90 select-none shrink-0" title="다음날">
+                                ▶
+                            </button>
+                        </div>
+                        <span id="phase-badge" class="inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-indigo-50 text-indigo-600">진도 제어 구간</span>
+                    </div>
+                    
+                    <!-- Save & Rollover Controller -->
+                    <div class="flex flex-col items-end gap-1">
+                        <div class="flex items-center gap-2">
+                            <span id="save-timestamp" class="text-[10px] text-slate-400 font-medium">최근 저장: 기록 없음</span>
+                            <button onclick="saveAndRollover()" class="text-xs bg-slate-900 text-white font-bold px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-800 transition-colors">
+                                💾 당일 플랜 저장 & 미완료 자동 이월
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="guidance-box" class="mb-4 bg-amber-50/50 border border-amber-100 p-3 rounded-xl text-xs text-amber-800 leading-relaxed font-medium">💡 발췌 수강 가이드라인</div>
+
+                <!-- 영역 분리형 체크리스트 컨테이너 -->
+                <div id="daily-tasks-container" class="space-y-4 flex-grow">
+                    <!-- Loaded dynamically split into boxes via JS -->
+                </div>
+
+                <!-- Daily Memo -->
+                <div class="mt-5 pt-3 border-t border-slate-100">
+                    <label for="daily-memo" class="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">📝 오늘의 학습 피드백 노트</label>
+                    <textarea id="daily-memo" rows="2" placeholder="틀린 접근법이나 핵심 노하우를 적으세요." class="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none bg-transparent"></textarea>
+                </div>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="resetAllData()" class="text-[10px] text-rose-400 hover:text-rose-600 transition-colors font-semibold">⚠️ 플래너 데이터 전체 초기화</button>
+            </div>
+
+        </section>
+    </main>
+
+    <footer class="bg-slate-900 text-slate-500 text-center py-4 border-t border-slate-800 text-[10px]">
+        <p>© 2026 Flove Study Studio. 완벽함은 작은 디테일의 누적으로 완성됩니다.</p>
+    </footer>
+
+    <script>
+        // --- 1. CORE CONFIGURATION & STATE ---
+        const TARGET_9PYUNG = new Date(2026, 8, 2);
+        const TARGET_SUNEUNG = new Date(2026, 10, 19);
+        const START_DATE = new Date(2026, 6, 10);
+        const END_DATE = new Date(2026, 7, 31);
+
+        const STATIC_START_TIME = START_DATE.getTime();
+        const STATIC_END_TIME = END_DATE.getTime();
+
+        let selectedDateStr = "2026-07-10";
+        let planData = {};
+
+        let pomoTimer = null;
+        let pomoTimeLeft = 25 * 60;
+        let isPomoRunning = false;
+        let pomoMode = 'focus'; 
+
+        let audioCtx = null;
+        let activeNodes = [];
+        let isAsmrPlaying = false;
+
+        const themePresets = {
+            clover: { hex: '#22c55e', bg: '#f2fbf5', isDark: false, pattern: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'><g fill='%2322c55e' opacity='0.05'><rect x='20' y='10' width='10' height='10'/><rect x='10' y='20' width='30' height='10'/><rect x='20' y='30' width='10' height='10'/><rect x='30' y='30' width='10' height='20'/></g></svg>\")" },
+            cherry: { hex: '#f43f5e', bg: '#fff5f6', isDark: false, pattern: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'><g fill='%23f43f5e' opacity='0.05'><rect x='20' y='20' width='10' height='10'/><rect x='30' y='10' width='10' height='10'/><rect x='40' y='20' width='10' height='10'/><rect x='30' y='30' width='10' height='10'/><circle cx='55' cy='55' r='6'/><path d='M55,55 Q60,45 65,40' stroke='%23f43f5e' stroke-width='2' fill='none'/></g></svg>\")" },
+            cyber: { hex: '#06b6d4', bg: '#090d16', isDark: true, pattern: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='%2306b6d4' opacity='0.03'><rect x='10' y='70' width='20' height='50'/><rect x='40' y='40' width='30' height='80'/><rect x='85' y='60' width='25' height='60'/><rect x='45' y='50' width='4' height='4' fill='%23ffffff' opacity='0.5'/><rect x='55' y='50' width='4' height='4' fill='%23ffffff' opacity='0.5'/><rect x='15' y='80' width='4' height='4' fill='%23ffffff' opacity='0.5'/></g></svg>\")" },
+            midnight: { hex: '#f59e0b', bg: '#111622', isDark: true, pattern: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'><g fill='%23f59e0b' opacity='0.04'><rect x='40' y='40' width='20' height='10'/><rect x='48' y='50' width='4' height='25'/><rect x='42' y='75' width='16' height='4'/><rect x='70' y='70' width='15' height='8'/><rect x='72' y='64' width='11' height='6'/></g></svg>\")" },
+            indigo: { hex: '#4f46e5', bg: '#f6f5ff', isDark: false, pattern: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'><g fill='%234f46e5' opacity='0.03'><rect x='0' y='0' width='40' height='1'/><rect x='0' y='0' width='1' height='40'/></g></svg>\")" }
+        };
+
+        // --- 2. UTILS & TIMESTAMPS ---
+        function formatYMD(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return y + "-" + m + "-" + d;
+        }
+
+        function createCleanDate(dateStr) {
+            const parts = dateStr.split('-');
+            return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        }
+
+        function getKoDay(dateObj) { return ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'][dateObj.getDay()]; }
+        
+        function getDDay(targetDate, baseDateStr) { 
+            const baseDate = createCleanDate(baseDateStr);
+            const d1 = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+            const d2 = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+            const diffTime = d1.getTime() - d2.getTime(); 
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            if (diffDays === 0) return "D-Day";
+            return diffDays > 0 ? "D-" + diffDays : "D+" + Math.abs(diffDays);
+        }
+
+        function changeDay(offset) {
+            const curDate = createCleanDate(selectedDateStr);
+            curDate.setDate(curDate.getDate() + offset);
+            const targetStr = formatYMD(curDate);
+            
+            if (planData[targetStr]) {
+                selectDate(targetStr);
+                renderDateList();
+                const activeBtn = document.getElementById("btn-nav-" + targetStr);
+                if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            } else {
+                alert(offset < 0 ? "첫 번째 학습 날짜입니다." : "마지막 학습 날짜입니다.");
+            }
+        }
+
+        // --- 3. DATA ARCHITECTURE BUILDER ---
+        function loadData() {
+            const savedTime = localStorage.getItem('flove-last-save') || '기록 없음';
+            const tsEl = document.getElementById('save-timestamp');
+            if(tsEl) tsEl.innerText = "최근 저장: " + savedTime;
+        }
+
+        function getMinchulVolume(dateObj) {
+            const refDate = new Date(2026, 6, 13);
+            const diffDays = Math.floor((dateObj.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === -3) return "주간 인(in)강민철 2호 — 1주 5일 학습 📖";
+            if (diffDays === -2) return "주간 인(in)강민철 2호 — 1주 6일 학습 📖";
+            if (diffDays === -1) return "주간 인(in)강민철 2호 — 1주 7일 학습 완결 📖";
+            
+            if (diffDays <= 20) {
+                const totalDaysFrom2Value = diffDays + 8;
+                const week = Math.ceil(totalDaysFrom2Value / 7);
+                const day = ((totalDaysFrom2Value - 1) % 7) + 1;
+                return "주간 인(in)강민철 2호 — " + week + "주 " + day + "일 학습 📖";
+            } else {
+                const totalDaysFrom3Value = diffDays - 21 + 1;
+                const week = Math.ceil(totalDaysFrom3Value / 7);
+                const day = ((totalDaysFrom3Value - 1) % 7) + 1;
+                return "주간 인(in)강민철 3호 — " + week + "주 " + day + "일 학습 📖";
+            }
+        }
+
+        function generatePlanData() {
+            planData = {};
+            let cur = new Date(START_DATE);
+            let dateArray = [];
+            while (cur <= END_DATE) { dateArray.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+
+            dateArray.forEach((dateObj, idx) => {
+                const dateStr = formatYMD(dateObj);
+                planData[dateStr] = { date: dateStr, dayName: getKoDay(dateObj), phase: idx === 0 ? "도입" : (idx <= 34 ? "1단계" : "2단계"), tasks: [] };
+
+                // Math Section
+                if (idx === 0) {
+                    planData[dateStr].tasks.push(
+                        { id: dateStr + "-mijeok-15", text: "시발점 미적분 I — 15강 수강 🎥", category: "math", type: "concept" },
+                        { id: dateStr + "-mijeok-16", text: "시발점 미적분 I — 16강 수강 🎥", category: "math", type: "concept" },
+                        { id: dateStr + "-mijeok-17", text: "시발점 미적분 I — 17강 수강 🎥", category: "math", type: "concept" },
+                        { id: dateStr + "-hwaktong-22", text: "시발점 확률과 통계 — 22강 수강 🎥", category: "math", type: "concept" },
+                        { id: dateStr + "-su1-info", text: "수분감 수1 — 23쪽까지 완료 확인 및 오답 복습 완료 ✨", category: "math", type: "gichul_self", isInfo: true }
+                    );
+                } else if (idx >= 1 && idx <= 34) {
+                    const p1Idx = idx - 1;
+                    const m1 = 18 + p1Idx * 2, m2 = 19 + p1Idx * 2;
+                    planData[dateStr].tasks.push(
+                        { id: dateStr + "-mijeok-" + m1, text: "시발점 미적분 I — " + m1 + "강 수강 🎥", category: "math", type: "concept" },
+                        { id: dateStr + "-mijeok-" + m2, text: "시발점 미적분 I — " + m2 + "강 수강 🎥", category: "math", type: "concept" }
+                    );
+                    const h = 23 + p1Idx;
+                    if (h <= 55) { planData[dateStr].tasks.push({ id: dateStr + "-hwaktong-" + h, text: "시발점 확률과 통계 — " + h + "강 수강 🎥", category: "math", type: "concept" }); }
+                    const totalPages = 91;
+                    const startPage = 24 + Math.round(p1Idx * (totalPages / 34)), endPage = 24 + Math.round((p1Idx + 1) * (totalPages / 34)) - 1;
+                    if (startPage <= endPage) { planData[dateStr].tasks.push({ id: dateStr + "-su1-step1-p" + startPage + "-p" + endPage, text: "수분감 수1 Step 1 자습 — p." + startPage + " ~ p." + endPage + " 스스로 풀기 ✍️", category: "math", type: "gichul_self" }); }
+                    const totalLecs = 45;
+                    const startLec = 1 + Math.round(p1Idx * (totalLecs / 34)), endLec = 1 + Math.round((p1Idx + 1) * (totalLecs / 34)) - 1;
+                    if (startLec <= endLec) { planData[dateStr].tasks.push({ id: dateStr + "-su1-step2-lec-" + startLec + "-" + endLec, text: "수분감 수1 Step 2 발췌 수강 — " + (startLec === endLec ? startLec+'강' : startLec+'강 ~ '+endLec+'강') + " 🩺", category: "math", type: "gichul_lec" }); }
+                } else {
+                    const p2Idx = idx - 35;
+                    const totalSu2Lecs = 65;
+                    const startSu2 = 1 + Math.round(p2Idx * (totalSu2Lecs / 18)), endSu2 = 1 + Math.round((p2Idx + 1) * (totalSu2Lecs / 18)) - 1;
+                    if (startSu2 <= endSu2) { planData[dateStr].tasks.push({ id: dateStr + "-su2-step2-lec-" + startSu2 + "-" + endSu2, text: "수분감 수2 Step 2 발췌 수강 — " + (startSu2 === endSu2 ? startSu2+'강' : startSu2+'강 ~ '+endSu2+'강') + " 🩺", category: "math", type: "gichul_lec" }); }
+                    const totalHwaktongLecs = 30;
+                    const startHwaktong = 1 + Math.round(p2Idx * (totalHwaktongLecs / 18)), endHwaktong = 1 + Math.round((p2Idx + 1) * (totalHwaktongLecs / 18)) - 1;
+                    if (startHwaktong <= endHwaktong) { planData[dateStr].tasks.push({ id: dateStr + "-hwaktong-step2-lec-" + startHwaktong + "-" + endHwaktong, text: "수분감 확통 Step 2 발췌 수강 — " + (startHwaktong === endHwaktong ? startHwaktong+'강' : startHwaktong+'강 ~ '+endHwaktong+'강') + " 🩺", category: "math", type: "gichul_lec" }); }
+                    planData[dateStr].tasks.push(
+                        { id: dateStr + "-su2-step1-self", text: "수분감 수2 Step 1 자습 (진도 문제 풀기) ✍️", category: "math", type: "gichul_self" },
+                        { id: dateStr + "-hwaktong-step1-self", text: "수분감 확통 Step 1 자습 (진도 문제 풀기) ✍️", category: "math", type: "gichul_self" }
+                    );
+                }
+
+                // Korean Section
+                let diffDaysKor = Math.floor((dateObj - new Date(2026, 6, 13)) / (1000 * 60 * 60 * 24));
+                let dayOfWeek = dateObj.getDay(); 
+
+                const minchulText = getMinchulVolume(dateObj);
+                planData[dateStr].tasks.push({ id: dateStr + "-kor-mc-gen", text: minchulText, category: "korean", type: "korean" });
+
+                if (diffDaysKor === -3) { 
+                    planData[dateStr].tasks.push({ id: dateStr + "-kor-pdf", text: "강기본 [문학] 5주차 복습 및 익힘 과제 🧠", category: "korean", type: "korean" });
+                } else if (diffDaysKor === -2) { 
+                    planData[dateStr].tasks.push({ id: dateStr + "-kor-pdf", text: "강기본 [독서] 6주차 복습 및 익힘 과제 🧠", category: "korean", type: "korean" });
+                } else if (diffDaysKor === -1) { 
+                    planData[dateStr].tasks.push({ id: dateStr + "-kor-pdf", text: "강기본 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                } else if (diffDaysKor >= 0) { 
+                    let weekIdx = Math.floor(diffDaysKor / 7);
+
+                    if (weekIdx === 0) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [문학] 6주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 1주차 수강 및 복습 🎥 (첫 시작! 🍀)", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [문학] 6주차 복습 및 익힘 과제 ✍️", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 1주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 1) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 1주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 2주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 1주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 2주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 2) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 2주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 3주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 2주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 3주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 3) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 3주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 4주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 3주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 4주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 4) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 4주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 5주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 4주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 5주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 5) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 5주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3 || dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 6주차 수강 및 복습 🎥", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 5) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 5주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 6) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [독서] 6주차 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 0) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "강기분 [언매/화작] 강의 수강 및 복습 ⚡", category: "korean", type: "korean" });
+                    } else if (weekIdx === 6) {
+                        if (dayOfWeek === 1 || dayOfWeek === 2) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 6주차 수강 및 복습 🎥 (파이널)", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 3) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "새기분 [문학] 6주차 파이널 최종 종합 복습 🧠", category: "korean", type: "korean" });
+                        else if (dayOfWeek === 4) planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "🚨 [실전 평가원 모평] 7월 평가원 모의고사 실제 응시 및 정밀 총평 📝", category: "korean", type: "korean" });
+                        else planData[dateStr].tasks.push({ id: dateStr + "-k-main", text: "📚 국어 영역: 수능 국어 누적 취약점 자습 및 체화 과제 수행 ✍️", category: "korean", type: "korean" });
+                    }
+                }
+
+                // 이월 미션 주입
+                let rolledTasks = JSON.parse(localStorage.getItem("flove-rolled-" + dateStr) || '[]');
+                rolledTasks.forEach(task => {
+                    planData[dateStr].tasks.push(task);
+                });
+            });
+        }
+
+        // --- 4. DYNAMIC THEME PRESETS ---
+        function applyThemeStyles(hex, bg, isDark, patternValue) {
+            document.documentElement.style.setProperty('--theme-primary', hex);
+            document.documentElement.style.setProperty('--theme-primary-dark', hex + 'cc');
+            document.documentElement.style.setProperty('--theme-bg-light', hex + '15');
+            document.documentElement.style.setProperty('--theme-border', hex + '25');
+            document.body.style.backgroundColor = bg;
+            document.body.style.backgroundImage = patternValue;
+            const header = document.getElementById('main-header');
+            if(header) header.style.background = "linear-gradient(135deg, #0f172a 0%, " + hex + " 100%)";
+
+            const textContainers = ['theme-panel', 'date-panel', 'garden-panel', 'stats-panel', 'tasks-panel'];
+            textContainers.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (isDark) {
+                        el.style.backgroundColor = '#161e2e'; el.style.borderColor = '#243249';
+                        el.classList.add('text-slate-300'); el.classList.remove('text-slate-800');
+                    } else {
+                        el.style.backgroundColor = '#ffffff'; el.style.borderColor = '#f1f5f9';
+                        el.classList.remove('text-slate-300'); el.classList.add('text-slate-800');
+                    }
+                }
+            });
+        }
+
+        function applyCustomHex(hex) {
+            localStorage.setItem('flove-active-preset', 'custom');
+            localStorage.setItem('flove-custom-hex', hex);
+            const picker = document.getElementById('theme-color-picker');
+            if(picker) picker.value = hex;
+            applyThemeStyles(hex, '#f8fafc', false, "none");
+        }
+
+        function selectThemePreset(presetKey) {
+            localStorage.setItem('flove-active-preset', presetKey);
+            const theme = themePresets[presetKey];
+            if(theme) {
+                applyThemeStyles(theme.hex, theme.bg, theme.isDark, theme.pattern);
+                if(isAsmrPlaying) startAudioEngine(presetKey);
+            }
+        }
+
+        // --- 5. POMODORO INTERFACE TIMER ---
+        function updatePomoUI() {
+            const timerText = document.getElementById('pomodoro-timer-text');
+            const badge = document.getElementById('pomo-mode-badge');
+            if(!timerText || !badge) return;
+            const mins = String(Math.floor(pomoTimeLeft / 60)).padStart(2, '0');
+            const secs = String(pomoTimeLeft % 60).padStart(2, '0');
+            timerText.innerText = mins + ":" + secs;
+            badge.innerText = pomoMode === 'focus' ? '집중' : '휴식';
+        }
+
+        function resetPomodoro() {
+            clearInterval(pomoTimer);
+            isPomoRunning = false;
+            pomoMode = 'focus';
+            pomoTimeLeft = 25 * 60;
+            const btn = document.getElementById('pomo-btn');
+            if (btn) btn.innerText = '시작';
+            updatePomoUI();
+        }
+
+        function togglePomodoro() {
+            const btn = document.getElementById('pomo-btn');
+            if (isPomoRunning) {
+                clearInterval(pomoTimer); isPomoRunning = false;
+                if(btn) btn.innerText = '시작';
+            } else {
+                isPomoRunning = true; if(btn) btn.innerText = '정지';
+                pomoTimer = setInterval(() => {
+                    pomoTimeLeft--;
+                    if (pomoTimeLeft <= 0) {
+                        clearInterval(pomoTimer); isPomoRunning = false;
+                        if (pomoMode === 'focus') {
+                            alert("🎉 25분 초집중 성공! 보너스 과일 영양분을 획득했습니다.");
+                            pomoMode = 'break'; pomoTimeLeft = 5 * 60;
+                        } else {
+                            alert("💪 휴식 끝! 새로운 공부 질주를 시작합니다.");
+                            pomoMode = 'focus'; pomoTimeLeft = 25 * 60;
+                        }
+                        if(btn) btn.innerText = '시작';
+                        updatePomoUI();
+                    }
+                    updatePomoUI();
+                }, 1000);
+            }
+        }
+
+        // --- 6. AUTO-SAVE & ROLLOVER SYSTEM ---
+        function resetAllData() { if (confirm("정말로 모든 데이터를 초기화하시겠습니까?")) { localStorage.clear(); location.reload(); } }
+
+        function saveAndRollover() {
+            const now = new Date();
+            const timeStr = now.toLocaleDateString() + " " + String(now.getHours()).padStart(2,'0') + ":" + String(now.getMinutes()).padStart(2,'0') + ":" + String(now.getSeconds()).padStart(2,'0');
+            localStorage.setItem('flove-last-save', timeStr);
+            const tsEl = document.getElementById('save-timestamp');
+            if(tsEl) tsEl.innerText = "최근 저장: " + timeStr;
+
+            const dayObj = planData[selectedDateStr];
+            let uncompletedRollovers = [];
+
+            if (dayObj && dayObj.tasks) {
+                dayObj.tasks.forEach(task => {
+                    if (!task.isInfo) {
+                        const isChecked = localStorage.getItem(task.id) === 'true';
+                        if (!isChecked) {
+                            const pureText = task.text.replace(/🎥|✍️|🧠|📖|⚡|🩺|💥|🔺|\[이월 미션\]/g, "").trim();
+                            uncompletedRollovers.push({
+                                id: "rolled-id-" + Date.now() + "-" + Math.floor(Math.random() * 100000),
+                                text: "🔺 [이월 미션] " + pureText,
+                                category: task.category,
+                                type: task.type,
+                                isRolled: true
+                            });
+                        }
+                    }
+                });
+            }
+
+            let curDate = createCleanDate(selectedDateStr);
+            curDate.setDate(curDate.getDate() + 1);
+            const nextDateStr = formatYMD(curDate);
+
+            if (planData[nextDateStr]) {
+                localStorage.setItem("flove-rolled-" + nextDateStr, JSON.stringify(uncompletedRollovers));
+                alert("💾 [저장 및 미완료 이월 완료]\n해결하지 못한 과제 " + uncompletedRollovers.length + "개가 내일 달력(" + nextDateStr + ")으로 안전 이월되었습니다.");
+            } else {
+                alert("💾 당일 플래너 성과가 로컬 저장소에 완벽히 세이브되었습니다.");
+            }
+            generatePlanData();
+            selectDate(selectedDateStr);
+        }
+
+        // --- 7. SIDEBAR & MATRIX CHECKLIST ENGINE ---
+        function renderDateList() {
+            const container = document.getElementById('date-list'); if(!container) return;
+            container.innerHTML = '';
+            const activePreset = localStorage.getItem('flove-active-preset') || 'clover';
+            const isDarkTheme = themePresets[activePreset]?.isDark || false;
+
+            Object.keys(planData).forEach(dateStr => {
+                const dayObj = planData[dateStr];
+                const displayMonthDay = parseInt(dateStr.split('-')[1]) + "/" + parseInt(dateStr.split('-')[2]);
+                let totalTasks = 0, completedTasks = 0;
+                dayObj.tasks.forEach(t => { if (!t.isInfo) { totalTasks++; if (localStorage.getItem(t.id) === 'true') completedTasks++; } });
+
+                const isSelected = dateStr === selectedDateStr;
+                const activeClasses = isSelected ? "dynamic-bg text-white font-bold shadow-md" : (isDarkTheme ? "bg-slate-800 text-slate-300 hover:bg-slate-700 border-transparent" : "bg-white text-slate-700 hover:bg-slate-50 border-transparent");
+                const badgeStyleClass = isSelected ? 'bg-white/20 text-white' : (isDarkTheme ? "bg-slate-700 text-slate-400" : "bg-slate-100 text-slate-400");
+
+                container.innerHTML += `<button id="btn-nav-${dateStr}" onclick="selectDate('${dateStr}')" class="w-full text-left p-2.5 rounded-xl flex items-center justify-between border transition-all ${activeClasses}"><div class="flex flex-col"><span class="text-[9px] opacity-60">${dayObj.dayName}</span><span class="text-xs font-semibold">${displayMonthDay}</span></div><span class="text-[9px] px-1.5 py-0.5 rounded-full ${badgeStyleClass}">${completedTasks}/${totalTasks}</span></button>`;
+            });
+        }
+
+        function restoreCheckStates() {
+            if(planData[selectedDateStr]) { selectDate(selectedDateStr); }
+        }
+
+        function selectDate(dateStr) {
+            selectedDateStr = dateStr; const dayObj = planData[dateStr]; if(!dayObj) return;
+            
+            const d9 = document.getElementById('dday-9');
+            const dsat = document.getElementById('dday-sat');
+            if(d9) d9.innerText = getDDay(TARGET_9PYUNG, dateStr);
+            if(dsat) dsat.innerText = getDDay(TARGET_SUNEUNG, dateStr);
+            
+            const displayDate = document.getElementById('current-display-date');
+            if(displayDate) displayDate.innerText = dateStr.split('-')[0] + "년 " + parseInt(dateStr.split('-')[1]) + "월 " + parseInt(dateStr.split('-')[2]) + "일 (" + dayObj.dayName + ")";
+            
+            const saveTimestamp = document.getElementById('save-timestamp');
+            const savedTime = localStorage.getItem('flove-last-save') || '기록 없음';
+            if(saveTimestamp) saveTimestamp.innerText = "최근 저장: " + savedTime;
+
+            const badge = document.getElementById('phase-badge');
+            if(badge) {
+                if (dateStr === "2026-07-10") { badge.innerText = "📅 오늘: 대단원 격파 빌드업 스타트!"; badge.className = "inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-slate-100 text-slate-600"; }
+                else if (dateStr === "2026-08-13") { badge.innerText = "🍀 1단계 완료: 수분감 스퍼트 전, 하프 버퍼 데이!"; badge.className = "inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-emerald-500 text-white"; }
+                else if (dayObj.phase === "1단계") { badge.innerText = "⚡ 1단계: 개념 완강 & 수1 기출 격파 구간"; badge.className = "inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-indigo-500 text-white"; }
+                else { badge.innerText = "🌳 2단계: 수2 / 확통 수분감 압축 스퍼트 구간"; badge.className = "inline-block mt-1 px-2 py-0.5 text-[9px] font-bold rounded-full bg-amber-500 text-white"; }
+            }
+
+            const guidanceBox = document.getElementById('guidance-box');
+            if(guidanceBox) {
+                if (dateStr === "2026-08-13") {
+                    guidanceBox.innerHTML = "🎉 수학 확률과 통계 시발점이 조기 완강되었습니다! 국어 영역 행동 분석과 취약 단원 기출 복습 스퍼트로 가볍게 채워나가세요.";
+                    guidanceBox.className = "mb-3 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl text-xs text-emerald-400 font-medium";
+                } else {
+                    guidanceBox.innerHTML = "💡 <strong>플로브 가이드:</strong> 수분감 인강은 아는 문제는 건너뛰고, 스스로 풀었을 때 막혔거나 해설 아이디어가 필요한 문제 위주로 <strong>'발췌 수강(골라 듣기)'</strong>를 해야 효율성이 극대화됩니다.";
+                    guidanceBox.className = "mb-3 bg-amber-500/10 border border-amber-100 p-2.5 rounded-xl text-xs text-amber-500 font-medium leading-relaxed";
+                }
+            }
+
+            const taskContainer = document.getElementById('daily-tasks-container'); if(!taskContainer) return;
+            taskContainer.innerHTML = '';
+
+            let korHtml = "", mathHtml = "";
+            
+            dayObj.tasks.forEach(task => {
+                const checked = localStorage.getItem(task.id) === 'true' || task.isInfo;
+                const checkboxHtml = task.isInfo 
+                    ? '<span class="text-emerald-400 mr-2.5">✔</span>'
+                    : '<input type="checkbox" id="' + task.id + '" ' + (checked ? 'checked' : '') + ' onchange="toggleTask(\'' + task.id + '\')" class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 mr-2.5 cursor-pointer">';
+
+                const elementHtml = '<div class="flex items-center p-2.5 rounded-xl border ' + (checked ? 'bg-slate-500/5 border-slate-300/20 text-slate-400 font-normal line-through' : 'bg-transparent border-slate-300/40 hover:border-slate-400 text-slate-700 font-semibold') + ' transition-all">' + checkboxHtml + '<label for="' + task.id + '" class="text-xs cursor-pointer select-none">' + task.text + '</label></div>';
+
+                if (task.category === "korean") { korHtml += elementHtml; } else { mathHtml += elementHtml; }
+            });
+
+            let compositeHtml = "";
+            if (korHtml) compositeHtml += '<div class="p-4 rounded-2xl bg-cyan-500/5 border border-cyan-500/20 shadow-xs"><h4 class="text-xs font-black text-cyan-600 mb-2.5 flex items-center gap-1.5">📚 국어 영역 수강 실천 박스</h4><div class="space-y-1.5">' + korHtml + '</div></div>';
+            if (mathHtml) compositeHtml += '<div class="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 shadow-xs"><h4 class="text-xs font-black text-emerald-600 mb-2.5 flex items-center gap-1.5">📐 수학 영역 수강 실천 박스</h4><div class="space-y-1.5">' + mathHtml + '</div></div>';
+            taskContainer.innerHTML = compositeHtml || '<p class="text-xs text-slate-400 text-center py-6">오늘 배정된 진도가 없습니다. 약점 복습 데이로 활용해 보세요!</p>';
+            
+            updateStats();
+        }
+
+        function toggleTask(taskId) { localStorage.setItem(taskId, document.getElementById(taskId).checked ? 'true' : 'false'); selectDate(selectedDateStr); }
+
+        function updateStats() {
+            let totalTasks = 0, totalChecked = 0, conceptTasks = 0, conceptChecked = 0, gichulTasks = 0, gichulChecked = 0, koreanTasks = 0, koreanChecked = 0;
+            Object.keys(planData).forEach(dateStr => {
+                planData[dateStr].tasks.forEach(t => {
+                    if (!t.isInfo) {
+                        totalTasks++; const isChecked = localStorage.getItem(t.id) === 'true'; if (isChecked) totalChecked++;
+                        if (t.type === 'concept') { conceptTasks++; if (isChecked) conceptChecked++; }
+                        else if (t.category === 'korean') { koreanTasks++; if (isChecked) koreanChecked++; }
+                        else { gichulTasks++; if (isChecked) gichulChecked++; }
+                    }
+                });
+            });
+
+            const conceptPct = conceptTasks > 0 ? Math.round((conceptChecked / conceptTasks) * 100) : 0;
+            const gichulPct = gichulTasks > 0 ? Math.round((gichulChecked / gichulTasks) * 100) : 0;
+            const koreanPct = koreanTasks > 0 ? Math.round((koreanChecked / koreanTasks) * 100) : 0;
+            const totalPct = totalTasks > 0 ? Math.round((totalChecked / totalTasks) * 100) : 0;
+
+            const cPctEl = document.getElementById('concept-percent'); if(cPctEl) cPctEl.innerText = conceptPct + "%";
+            const cFracEl = document.getElementById('concept-fraction'); if(cFracEl) cFracEl.innerText = conceptChecked + "/" + conceptTasks + "강";
+            const gPctEl = document.getElementById('gichul-percent'); if(gPctEl) gPctEl.innerText = gichulPct + "%";
+            const gFracEl = document.getElementById('gichul-fraction'); if(gFracEl) gFracEl.innerText = gichulChecked + "/" + gichulTasks + "개";
+            const kPctEl = document.getElementById('korean-percent'); if(kPctEl) kPctEl.innerText = koreanPct + "%";
+            const kFracEl = document.getElementById('korean-fraction'); if(kFracEl) kFracEl.innerText = koreanChecked + "/" + koreanTasks + "개";
+            const tPctEl = document.getElementById('total-percent'); if(tPctEl) tPctEl.innerText = totalPct + "%";
+            const tFracEl = document.getElementById('total-fraction'); if(tFracEl) tFracEl.innerText = totalChecked + "/" + totalTasks + "항목";
+
+            let dayTotal = 0, dayChecked = 0;
+            if(planData[selectedDateStr]) {
+                planData[selectedDateStr].tasks.forEach(t => { if (!t.isInfo) { dayTotal++; if (localStorage.getItem(t.id) === 'true') dayChecked++; } });
+            }
+            const dpBadge = document.getElementById('day-progress-badge'); if(dpBadge) dpBadge.innerText = "오늘 완료: " + dayChecked + "/" + dayTotal;
+
+            updateTreeGarden(totalPct); calculateStreak();
+        }
+
+        function calculateStreak() {
+            let streak = 0; let currentCheck = new Date(STATIC_START_TIME);
+            for (let i = 0; i < 60; i++) {
+                let dStr = formatYMD(currentCheck); if (dStr >= selectedDateStr) break; 
+                let dayTotal = 0, dayChecked = 0;
+                if (planData[dStr]) {
+                    planData[dStr].tasks.forEach(t => { if(!t.isInfo) { dayTotal++; if(localStorage.getItem(t.id) === 'true') dayChecked++; } });
+                    if (dayTotal > 0 && dayChecked === dayTotal) { streak++; } else { streak = 0; }
+                }
+                currentCheck.setDate(currentCheck.getDate() + 1);
+            }
+            const sEl = document.getElementById('streak-count'); if(sEl) sEl.innerText = streak;
+        }
+
+        function updateTreeGarden(percent) {
+            const emojiEl = document.getElementById('tree-emoji'); const badgeEl = document.getElementById('tree-status-badge'); const msgEl = document.getElementById('tree-message');
+            if(!emojiEl || !badgeEl || !msgEl) return;
+            const gPct = document.getElementById('tree-growth-percent'); if(gPct) gPct.innerText = percent + "%";
+            const gBar = document.getElementById('tree-growth-bar'); if(gBar) gBar.style.width = percent + "%";
+
+            if (percent === 0) { emojiEl.innerText = "🌱"; badgeEl.innerText = "씨앗 (0%)"; msgEl.innerText = "행운의 기운을 머금고 싹틀 준비를 마친 씨앗입니다."; }
+            else if (percent <= 15) { emojiEl.innerText = "🌿"; badgeEl.innerText = "어린 싹 (1%~15%)"; msgEl.innerText = "첫 생명의 싹이 고개를 쏙 내밀었네요! 멋진 스타트입니다."; }
+            else if (percent <= 35) { emojiEl.innerText = "🪵"; badgeEl.innerText = "가지 성장 (16%~35%)"; msgEl.innerText = "줄기가 단단해지고 있어요. 수학과 국어의 뼈대가 곧게 자라는 중입니다."; }
+            else if (percent <= 55) { emojiEl.innerText = "🌳"; badgeEl.innerText = "풍성한 잎 (36%~55%)"; msgEl.innerText = "우람한 나무 그늘이 만들어집니다. 이미 절반을 돌파하셨어요!"; }
+            else if (percent <= 75) { emojiEl.innerText = "🌸"; badgeEl.innerText = "꽃 피움 (56%~75%)"; msgEl.innerText = "화사한 꽃망울이 맺혔습니다. 기출과 체화가 무르익고 있다는 증거죠."; }
+            else if (percent < 100) { emojiEl.innerText = "🍏"; badgeEl.innerText = "열매 성숙 (76%~99%)"; msgEl.innerText = "탐스러운 열매가 자라납니다. 100%가 되면 황금 과일로 개화합니다!"; }
+            else { emojiEl.innerText = "👑🍎✨"; badgeEl.innerText = "황금 수확 (100%)"; msgEl.innerText = "🎉 축 완강! 국어·수학의 황금 과일이 가득합니다. 이제 9평은 플로브님의 독무대입니다!"; }
+        }
+
+        function updateTree() {
+            let totalTasks = 0, totalChecked = 0;
+            Object.keys(planData).forEach(dateStr => {
+                planData[dateStr].tasks.forEach(t => { if (!t.isInfo) { totalTasks++; if (localStorage.getItem(t.id) === 'true') totalChecked++; } });
+            });
+            const totalPct = totalTasks > 0 ? Math.round((totalChecked / totalTasks) * 100) : 0;
+            updateTreeGarden(totalPct);
+        }
+
+        function jumpToToday() {
+            const realSystemClock = new Date(); 
+            let todayStr = formatYMD(realSystemClock);
+            if (!planData[todayStr]) { todayStr = "2026-07-10"; } 
+            selectDate(todayStr);
+            renderDateList();
+            const activeBtn = document.getElementById("btn-nav-" + todayStr);
+            if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function toggleASMR() {
+            isAsmrPlaying = !isAsmrPlaying;
+            const activePreset = localStorage.getItem('flove-active-preset') || 'clover';
+            const btn = document.getElementById('asmr-btn'); if(!btn) return;
+            if (isAsmrPlaying) {
+                btn.innerHTML = "🔊 사운드 ON";
+                btn.classList.add('bg-emerald-50', 'text-emerald-600', 'border-emerald-200');
+                startAudioEngine(activePreset);
+            } else {
+                btn.innerHTML = "🔇 사운드 OFF";
+                btn.classList.remove('bg-emerald-50', 'text-emerald-600', 'border-emerald-200');
+                stopAudioEngine();
+            }
+        }
+
+        function startAudioEngine(type) {
+            try {
+                stopAudioEngine(); if (!isAsmrPlaying) return;
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const bufferSize = 3 * audioCtx.sampleRate;
+                const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const output = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+                const masterGain = audioCtx.createGain(); masterGain.gain.value = 0.3; masterGain.connect(audioCtx.destination);
+
+                if (type === 'clover') { 
+                    let windSource = audioCtx.createBufferSource(); windSource.buffer = noiseBuffer; windSource.loop = true;
+                    let filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 320;
+                    let gustLfo = audioCtx.createOscillator(); gustLfo.type = 'sine'; gustLfo.frequency.value = 0.15; 
+                    let gustGain = audioCtx.createGain(); gustGain.gain.value = 140; 
+                    let volLfo = audioCtx.createGain(); volLfo.gain.value = 0.35;
+                    gustLfo.connect(gustGain); gustGain.connect(filter.frequency);
+                    windSource.connect(filter); filter.connect(volLfo); volLfo.connect(masterGain);
+                    gustLfo.start(); windSource.start(); activeNodes.push(gustLfo, windSource);
+                } else if (type === 'midnight') { 
+                    let flameSource = audioCtx.createBufferSource(); flameSource.buffer = noiseBuffer; flameSource.loop = true;
+                    let flameFilter = audioCtx.createBiquadFilter(); flameFilter.type = 'lowpass'; flameFilter.frequency.value = 110;
+                    let flameGain = audioCtx.createGain(); flameGain.gain.value = 0.45;
+                    let flameLfo = audioCtx.createOscillator(); flameLfo.type = 'sine'; flameLfo.frequency.value = 1.2;
+                    let flameLfoGain = audioCtx.createGain(); flameLfoGain.gain.value = 0.2;
+                    flameLfo.connect(flameLfoGain); flameLfoGain.connect(flameGain.gain);
+                    flameSource.connect(flameFilter); flameFilter.connect(flameGain); flameGain.connect(masterGain);
+                    flameLfo.start(); flameSource.start(); activeNodes.push(flameLfo, flameSource);
+
+                    let woodSource = audioCtx.createBufferSource(); woodSource.buffer = noiseBuffer; woodSource.loop = true;
+                    let woodFilter = audioCtx.createBiquadFilter(); woodFilter.type = 'bandpass'; woodFilter.frequency.value = 850; woodFilter.Q.value = 4;
+                    let snapLfo = audioCtx.createOscillator(); snapLfo.type = 'sawtooth'; snapLfo.frequency.value = 4.5;
+                    let snapLfoGain = audioCtx.createGain(); snapLfoGain.gain.value = 0.04;
+                    let snapBaseGain = audioCtx.createGain(); snapBaseGain.gain.value = 0.012;
+                    snapLfo.connect(snapLfoGain); snapLfoGain.connect(snapBaseGain.gain);
+                    woodSource.connect(woodFilter); woodFilter.connect(snapBaseGain); snapBaseGain.connect(masterGain);
+                    snapLfo.start(); woodSource.start(); activeNodes.push(snapLfo, woodSource);
+                } else if (type === 'cherry') { 
+                    let vintageNoise = audioCtx.createBufferSource(); vintageNoise.buffer = noiseBuffer; vintageNoise.loop = true;
+                    let bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 750; bp.Q.value = 0.6;
+                    let nG = audioCtx.createGain(); nG.gain.value = 0.06;
+                    vintageNoise.connect(bp); bp.connect(nG); nG.connect(masterGain);
+                    vintageNoise.start(); activeNodes.push(vintageNoise);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function stopAudioEngine() { activeNodes.forEach(node => { try { node.stop(); } catch(e){} node.disconnect(); }); activeNodes = []; }
+
+        // --- 8. ABSOLUTE SECURE RUNTIME TIMELINE ---
+        document.addEventListener("DOMContentLoaded", function() {
+            loadData();
+            generatePlanData();
+            jumpToToday();
+            renderDateList();
+            restoreCheckStates();
+            updateStats();
+            updateTree();
+            updatePomoUI(); 
+            
+            const savedPreset = localStorage.getItem('flove-active-preset') || 'clover';
+            if (savedPreset === 'custom') { applyCustomHex(localStorage.getItem('flove-custom-hex') || '#22c55e'); } 
+            else { selectThemePreset(savedPreset); }
+        });
+    </script>
+</body>
+</html>
