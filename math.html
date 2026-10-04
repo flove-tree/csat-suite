@@ -1029,8 +1029,11 @@
     </div>
     <div class="export-btns">
       <button class="btn" onclick="exportToWord()" title="Word 문서로 다운로드">📝 Word 내보내기</button>
+      <button class="btn" onclick="exportJSON()">💾 백업 저장</button>
+      <button class="btn" onclick="importJSON()">📂 백업 불러오기</button>
       <button class="btn btn-secondary" onclick="exportToPDF()" title="PDF 문서로 저장">📥 PDF 내보내기</button>
       <button class="btn btn-primary" onclick="window.print()" title="인쇄 / PDF 출력">🖨️ 인쇄 / PDF 출력</button>
+      <input type="file" id="jsonFileInput" style="display:none;" accept=".json" onchange="loadJSON(event)">
     </div>
   </header>
 
@@ -2166,7 +2169,46 @@
 
     html2pdf().set(opt).from(element).save();
   }
+// JSON 백업 저장
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `수학_오답행동강령_백업_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
+  // JSON 백업 불러오기 창 열기
+  function importJSON() {
+    document.getElementById('jsonFileInput').click();
+  }
+
+  // JSON 파일 읽어서 복원하기
+  function loadJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const importedNotes = Array.isArray(parsed) ? parsed : (parsed.notes || []);
+        if (!Array.isArray(importedNotes)) {
+          throw new Error('올바른 백업 데이터 형식이 아닙니다.');
+        }
+        notes = importedNotes;
+        saveAndRender();
+        alert('🎉 수학 오답 및 행동강령 데이터가 성공적으로 복원되었습니다!');
+      } catch (err) {
+        alert('불러오기 실패: ' + err.message);
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  }
   window.addEventListener('DOMContentLoaded', init);
 </script>
 </body>

@@ -541,24 +541,101 @@
 </head>
 <body>
 <!-- Universal Navigation Bar Header -->
-<nav style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-family: Pretendard, sans-serif; font-size: 13px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 9999;">
-  <div style="display: flex; align-items: center; gap: 8px; font-weight: 800;">
-    <a href="index.html" style="color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 6px;">
-      <span style="background: #0284c7; color: #ffffff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">F</span>
-      <span>Flove Suite</span>
+<!-- Modern Floating Glassmorphism Navigation Bar Header -->
+<nav style="
+  position: sticky;
+  top: 10px;
+  z-index: 9999;
+  margin: 10px 16px 20px 16px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  font-family: Pretendard, -apple-system, sans-serif;
+  transition: all 0.3s ease;
+">
+  <!-- Logo & Home Link -->
+  <div style="display: flex; align-items: center; gap: 10px; shrink: 0;">
+    <a href="index.html" style="
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: -0.3px;
+    ">
+      <div style="
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #0284c7 0%, #6366f1 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 13px;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+      ">F</div>
+      <span style="background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Flove Suite</span>
     </a>
   </div>
-  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-    <a href="korean.html" style="color: #f43f5e; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(244,63,94,0.12); font-weight: 700;">📖 국어</a>
-    <a href="math.html" style="color: #3b82f6; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(59,130,246,0.12); font-weight: 700;">📐 수학</a>
-    <a href="eng.html" style="color: #6366f1; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); font-weight: 700;">🔤 영어</a>
-    <a href="sang.html" style="color: #a855f7; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(168,85,247,0.12); font-weight: 700;">⚖️ 생윤</a>
-    <a href="samun.html" style="color: #10b981; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); font-weight: 700;">📊 사문</a>
-    <span style="color: #334155;">|</span>
-    <a href="plan.html" style="color: #f59e0b; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.12); font-weight: 700;">🎯 플래너</a>
-    <a href="timer.html" style="color: #f97316; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(249,115,22,0.12); font-weight: 700;">☕ 타이머</a>
+
+  <!-- Navigation Items Container -->
+  <div style="
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 2px 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  ">
+    <a href="index.html" class="nav-pill" style="color: #94a3b8; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap;">
+      <span>🏠 허브</span>
+    </a>
+    <a href="korean.html" class="nav-pill" style="color: #fda4af; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(244, 63, 94, 0.15);">
+      <span>📖 국어</span>
+    </a>
+    <a href="math.html" class="nav-pill" style="color: #93c5fd; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(59, 130, 246, 0.15);">
+      <span>📐 수학</span>
+    </a>
+    <a href="eng.html" class="nav-pill" style="color: #a5b4fc; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(99, 102, 241, 0.15);">
+      <span>🔤 영어</span>
+    </a>
+    <a href="sang.html" class="nav-pill" style="color: #d8b4fe; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(168, 85, 247, 0.15);">
+      <span>⚖️ 생윤</span>
+    </a>
+    <a href="samun.html" class="nav-pill" style="color: #6ee7b7; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(16, 185, 129, 0.15);">
+      <span>📊 사문</span>
+    </a>
+    <div style="width: 1px; height: 16px; background: rgba(255, 255, 255, 0.15); margin: 0 4px;"></div>
+    <a href="plan.html" class="nav-pill" style="color: #fcd34d; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(245, 158, 11, 0.15);">
+      <span>🎯 플래너</span>
+    </a>
+    <a href="timer.html" class="nav-pill" style="color: #fdba74; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(249, 115, 22, 0.15);">
+      <span>☕ 타이머</span>
+    </a>
   </div>
 </nav>
+
+<style>
+  /* 네비게이션 버튼 호버 시 부드러운 확대 및 광택 효과 */
+  .nav-pill:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+</style>
+
 <div class="container">
   <!-- Subject Switcher Tabs -->
   <div class="subject-nav">
@@ -581,7 +658,10 @@
     </div>
     <div class="export-btns">
       <button class="btn" onclick="exportToWord()" title="내용만 최종 요약으로 내보내기">📝 Word 요약 내보내기</button>
+      <button class="btn" onclick="exportJSON()">💾 백업 저장</button>
+      <button class="btn" onclick="importJSON()">📂 백업 불러오기</button>
       <button class="btn btn-primary" onclick="window.print()">📄 PDF / 인쇄</button>
+      <input type="file" id="jsonFileInput" style="display:none;" accept=".json" onchange="loadJSON(event)">
     </div>
   </header>
 
@@ -1163,7 +1243,46 @@
     a.click();
     document.body.removeChild(a);
   }
+// JSON 백업 내보내기
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `국어_새기분_오답노트_백업_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
+  // JSON 백업 불러오기 창 열기
+  function importJSON() {
+    document.getElementById('jsonFileInput').click();
+  }
+
+  // JSON 파일 읽어서 복원하기
+  function loadJSON(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const importedNotes = Array.isArray(parsed) ? parsed : (parsed.notes || []);
+        if (!Array.isArray(importedNotes)) {
+          throw new Error('올바른 백업 데이터 형식이 아닙니다.');
+        }
+        notes = importedNotes;
+        saveAndRender();
+        alert('🎉 국어 오답 및 행동강령 데이터가 성공적으로 복원되었습니다!');
+      } catch (err) {
+        alert('불러오기 실패: ' + err.message);
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  }
   // 초기 시작 시 절대강령 탭으로 시작
   switchSubject('absolute');
 </script>
