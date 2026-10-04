@@ -4,28 +4,76 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>강민철 [새기분] 오답 & 행동강령 대시보드 v5 (절대강령/순서변경 추가)</title>
+<!-- 잇올 완벽 대응 구글 클라우드 양방향 완전 동기화 스크립트 -->
 <script>
-  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  // ★ 본인의 Google Apps Script 배포 URL로 반드시 교체하세요!
   const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+  
+  const originalSetItem = localStorage.setItem; // 원본 setItem 저장
+  let isSyncing = false; // 동기화 중 재귀 호출 방지 플래그
 
-  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
-  async function syncLoadFromCloud() {
+  // 1. [양방향 동기화] 클라우드 ↔ 내 기기 데이터 완전 통합
+  async function syncFullBidirectional() {
+    if (!SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
     try {
+      isSyncing = true; // 동기화 중 자동 저장 차단
+
+      // A. 구글 클라우드 데이터 불러오기
       const response = await fetch(SYNC_SERVER_URL);
-      const cloudData = await response.json();
-      if (cloudData && typeof cloudData === 'object') {
-        for (const [key, value] of Object.entries(cloudData)) {
-          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+      let cloudData = await response.json();
+      if (!cloudData || typeof cloudData !== 'object') cloudData = {};
+
+      let hasLocalUpdated = false;
+      let hasCloudNeedsUpdate = false;
+
+      // B. [클라우드 -> 내 기기] 클라우드에 있는 최신 데이터 가져오기
+      for (const [key, value] of Object.entries(cloudData)) {
+        const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        if (localStorage.getItem(key) !== valStr) {
+          originalSetItem.call(localStorage, key, valStr);
+          hasLocalUpdated = true;
         }
-        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+
+      // C. [내 기기 -> 클라우드] 기기에 기존에 있던 데이터 검사
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const val = localStorage.getItem(key);
+        localData[key] = val;
+
+        // 클라우드에 없는 기존 내 기기 데이터가 있다면 클라우드로 업로드 필요
+        if (!(key in cloudData)) {
+          hasCloudNeedsUpdate = true;
+        }
+      }
+
+      // D. 기존 내 기기 데이터가 클라우드에 없었다면 즉시 클라우드로 올리기
+      if (hasCloudNeedsUpdate) {
+        await fetch(SYNC_SERVER_URL, {
+          method: "POST",
+          body: JSON.stringify(localData)
+        });
+        console.log("☁️ 기존 기기 데이터 클라우드 최초 업로드 완료!");
+      }
+
+      console.log("☁️ 구글 클라우드 양방향 동기화 완료!");
+
+      // 데이터가 새로 들어왔을 경우 1회 화면 새로고침하여 반영
+      if (hasLocalUpdated && !sessionStorage.getItem('synced_once')) {
+        sessionStorage.setItem('synced_once', 'true');
+        location.reload();
       }
     } catch (err) {
-      console.error("불러오기 실패:", err);
+      console.error("❌ 동기화 실패:", err);
+    } finally {
+      isSyncing = false;
     }
   }
 
-  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  // 2. 실시간 로컬 변경 사항 클라우드 전송
   async function syncSaveToCloud() {
+    if (isSyncing || !SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
     try {
       const localData = {};
       for (let i = 0; i < localStorage.length; i++) {
@@ -36,25 +84,25 @@
         method: "POST",
         body: JSON.stringify(localData)
       });
-      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+      console.log("☁️ 클라우드 자동 저장 완료!");
     } catch (err) {
-      console.error("저장 실패:", err);
+      console.error("❌ 저장 실패:", err);
     }
   }
 
-  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
-  window.addEventListener('DOMContentLoaded', async () => {
-    await syncLoadFromCloud();
-  });
-
-  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
-  const originalSetItem = localStorage.setItem;
+  // localStorage.setItem 가로채기
   localStorage.setItem = function(key, value) {
     originalSetItem.apply(this, arguments);
-    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+    if (!isSyncing) {
+      syncSaveToCloud();
+    }
   };
-</script>
 
+  // 페이지 접속 직시 양방향 동기화 실행
+  document.addEventListener('DOMContentLoaded', () => {
+    syncFullBidirectional();
+  });
+</script>
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <style>
     :root {

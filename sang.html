@@ -5,27 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>생활과 윤리 교정 노트 · 위치 선택 / × 표시 / 수정</title>
 <script>
-  // ★ 본인이 발급받은 Google Apps Script URL로 교체하세요.
+  // ★ 본인의 Google Apps Script 배포 URL로 반드시 교체하세요!
   const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
+  
+  const originalSetItem = localStorage.setItem; // 원본 setItem 저장
+  let isSyncing = false; // 동기화 중 재귀 호출 방지 플래그
 
-  // 1. 클라우드에서 최신 데이터 가져와 로컬스토리지에 자동 적용
-  async function syncLoadFromCloud() {
+  // 1. [양방향 동기화] 클라우드 ↔ 내 기기 데이터 완전 통합
+  async function syncFullBidirectional() {
+    if (!SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
     try {
+      isSyncing = true; // 동기화 중 자동 저장 차단
+
+      // A. 구글 클라우드 데이터 불러오기
       const response = await fetch(SYNC_SERVER_URL);
-      const cloudData = await response.json();
-      if (cloudData && typeof cloudData === 'object') {
-        for (const [key, value] of Object.entries(cloudData)) {
-          localStorage.setItem(key, typeof value === 'object' ? JSON.stringify(value) : value);
+      let cloudData = await response.json();
+      if (!cloudData || typeof cloudData !== 'object') cloudData = {};
+
+      let hasLocalUpdated = false;
+      let hasCloudNeedsUpdate = false;
+
+      // B. [클라우드 -> 내 기기] 클라우드에 있는 최신 데이터 가져오기
+      for (const [key, value] of Object.entries(cloudData)) {
+        const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+        if (localStorage.getItem(key) !== valStr) {
+          originalSetItem.call(localStorage, key, valStr);
+          hasLocalUpdated = true;
         }
-        console.log("☁️ 구글 클라우드 데이터 동기화 완료!");
+      }
+
+      // C. [내 기기 -> 클라우드] 기기에 기존에 있던 데이터 검사
+      const localData = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const val = localStorage.getItem(key);
+        localData[key] = val;
+
+        // 클라우드에 없는 기존 내 기기 데이터가 있다면 클라우드로 업로드 필요
+        if (!(key in cloudData)) {
+          hasCloudNeedsUpdate = true;
+        }
+      }
+
+      // D. 기존 내 기기 데이터가 클라우드에 없었다면 즉시 클라우드로 올리기
+      if (hasCloudNeedsUpdate) {
+        await fetch(SYNC_SERVER_URL, {
+          method: "POST",
+          body: JSON.stringify(localData)
+        });
+        console.log("☁️ 기존 기기 데이터 클라우드 최초 업로드 완료!");
+      }
+
+      console.log("☁️ 구글 클라우드 양방향 동기화 완료!");
+
+      // 데이터가 새로 들어왔을 경우 1회 화면 새로고침하여 반영
+      if (hasLocalUpdated && !sessionStorage.getItem('synced_once')) {
+        sessionStorage.setItem('synced_once', 'true');
+        location.reload();
       }
     } catch (err) {
-      console.error("불러오기 실패:", err);
+      console.error("❌ 동기화 실패:", err);
+    } finally {
+      isSyncing = false;
     }
   }
 
-  // 2. 현재 저장된 데이터를 구글 클라우드로 자동 전송
+  // 2. 실시간 로컬 변경 사항 클라우드 전송
   async function syncSaveToCloud() {
+    if (isSyncing || !SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
     try {
       const localData = {};
       for (let i = 0; i < localStorage.length; i++) {
@@ -36,23 +83,24 @@
         method: "POST",
         body: JSON.stringify(localData)
       });
-      console.log("☁️ 구글 클라우드 자동 저장 완료!");
+      console.log("☁️ 클라우드 자동 저장 완료!");
     } catch (err) {
-      console.error("저장 실패:", err);
+      console.error("❌ 저장 실패:", err);
     }
   }
 
-  // 페이지 열릴 때 최신 클라우드 데이터 자동 동기화
-  window.addEventListener('DOMContentLoaded', async () => {
-    await syncLoadFromCloud();
-  });
-
-  // 로컬스토리지 저장 함수 가로채기 (기존 코드를 수정할 필요 없이 자동 감지)
-  const originalSetItem = localStorage.setItem;
+  // localStorage.setItem 가로채기
   localStorage.setItem = function(key, value) {
     originalSetItem.apply(this, arguments);
-    syncSaveToCloud(); // 저장 이벤트 발생 시 클라우드로 자동 백업
+    if (!isSyncing) {
+      syncSaveToCloud();
+    }
   };
+
+  // 페이지 접속 직시 양방향 동기화 실행
+  document.addEventListener('DOMContentLoaded', () => {
+    syncFullBidirectional();
+  });
 </script>
 
   <style>
@@ -444,24 +492,100 @@
 </head>
 <body>
 <!-- Universal Navigation Bar Header -->
-<nav style="background-color: #0f172a; color: #ffffff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; font-family: Pretendard, sans-serif; font-size: 13px; border-bottom: 1px solid #1e293b; position: sticky; top: 0; z-index: 9999;">
-  <div style="display: flex; align-items: center; gap: 8px; font-weight: 800;">
-    <a href="index.html" style="color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 6px;">
-      <span style="background: #0284c7; color: #ffffff; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px;">F</span>
-      <span>Flove Suite</span>
+<!-- Modern Floating Glassmorphism Navigation Bar Header -->
+<nav style="
+  position: sticky;
+  top: 10px;
+  z-index: 9999;
+  margin: 10px 16px 20px 16px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  font-family: Pretendard, -apple-system, sans-serif;
+  transition: all 0.3s ease;
+">
+  <!-- Logo & Home Link -->
+  <div style="display: flex; align-items: center; gap: 10px; shrink: 0;">
+    <a href="index.html" style="
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: -0.3px;
+    ">
+      <div style="
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #0284c7 0%, #6366f1 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-weight: 900;
+        font-size: 13px;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+      ">F</div>
+      <span style="background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Flove Suite</span>
     </a>
   </div>
-  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-    <a href="korean.html" style="color: #f43f5e; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(244,63,94,0.12); font-weight: 700;">📖 국어</a>
-    <a href="math.html" style="color: #3b82f6; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(59,130,246,0.12); font-weight: 700;">📐 수학</a>
-    <a href="eng.html" style="color: #6366f1; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(99,102,241,0.12); font-weight: 700;">🔤 영어</a>
-    <a href="sang.html" style="color: #a855f7; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(168,85,247,0.12); font-weight: 700;">⚖️ 생윤</a>
-    <a href="samun.html" style="color: #10b981; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(16,185,129,0.12); font-weight: 700;">📊 사문</a>
-    <span style="color: #334155;">|</span>
-    <a href="plan.html" style="color: #f59e0b; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(245,158,11,0.12); font-weight: 700;">🎯 플래너</a>
-    <a href="timer.html" style="color: #f97316; text-decoration: none; padding: 4px 10px; border-radius: 6px; background: rgba(249,115,22,0.12); font-weight: 700;">☕ 타이머</a>
+
+  <!-- Navigation Items Container -->
+  <div style="
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 2px 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  ">
+    <a href="index.html" class="nav-pill" style="color: #94a3b8; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap;">
+      <span>🏠 허브</span>
+    </a>
+    <a href="korean.html" class="nav-pill" style="color: #fda4af; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(244, 63, 94, 0.15);">
+      <span>📖 국어</span>
+    </a>
+    <a href="math.html" class="nav-pill" style="color: #93c5fd; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(59, 130, 246, 0.15);">
+      <span>📐 수학</span>
+    </a>
+    <a href="eng.html" class="nav-pill" style="color: #a5b4fc; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(99, 102, 241, 0.15);">
+      <span>🔤 영어</span>
+    </a>
+    <a href="sang.html" class="nav-pill" style="color: #d8b4fe; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(168, 85, 247, 0.15);">
+      <span>⚖️ 생윤</span>
+    </a>
+    <a href="samun.html" class="nav-pill" style="color: #6ee7b7; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(16, 185, 129, 0.15);">
+      <span>📊 사문</span>
+    </a>
+    <div style="width: 1px; height: 16px; background: rgba(255, 255, 255, 0.15); margin: 0 4px;"></div>
+    <a href="plan.html" class="nav-pill" style="color: #fcd34d; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(245, 158, 11, 0.15);">
+      <span>🎯 플래너</span>
+    </a>
+    <a href="timer.html" class="nav-pill" style="color: #fdba74; text-decoration: none; padding: 6px 11px; border-radius: 10px; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap; background: rgba(249, 115, 22, 0.15);">
+      <span>☕ 타이머</span>
+    </a>
   </div>
 </nav>
+
+<style>
+  /* 네비게이션 버튼 호버 시 부드러운 확대 및 광택 효과 */
+  .nav-pill:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+</style>
 
   <header>
     <span class="badge">2027 수능 대비</span>
