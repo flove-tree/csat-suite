@@ -4,104 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flove의 국어·수학 통합 스튜디오</title>
-<script>
-  // ★ 본인의 Google Apps Script 배포 URL로 반드시 교체하세요!
-  const SYNC_SERVER_URL = "https://script.google.com/macros/s/AKfycbzf5zZG53ArO38Y9pYUQi4uBTLCvf8x1qLH5_CHSJRMXabslHh17XbnYo8xxE6ntPZR/exec";
-  
-  const originalSetItem = localStorage.setItem; // 원본 setItem 저장
-  let isSyncing = false; // 동기화 중 재귀 호출 방지 플래그
-
-  // 1. [양방향 동기화] 클라우드 ↔ 내 기기 데이터 완전 통합
-  async function syncFullBidirectional() {
-    if (!SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
-    try {
-      isSyncing = true; // 동기화 중 자동 저장 차단
-
-      // A. 구글 클라우드 데이터 불러오기
-      const response = await fetch(SYNC_SERVER_URL);
-      let cloudData = await response.json();
-      if (!cloudData || typeof cloudData !== 'object') cloudData = {};
-
-      let hasLocalUpdated = false;
-      let hasCloudNeedsUpdate = false;
-
-      // B. [클라우드 -> 내 기기] 클라우드에 있는 최신 데이터 가져오기
-      for (const [key, value] of Object.entries(cloudData)) {
-        const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
-        if (localStorage.getItem(key) !== valStr) {
-          originalSetItem.call(localStorage, key, valStr);
-          hasLocalUpdated = true;
-        }
-      }
-
-      // C. [내 기기 -> 클라우드] 기기에 기존에 있던 데이터 검사
-      const localData = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        const val = localStorage.getItem(key);
-        localData[key] = val;
-
-        // 클라우드에 없는 기존 내 기기 데이터가 있다면 클라우드로 업로드 필요
-        if (!(key in cloudData)) {
-          hasCloudNeedsUpdate = true;
-        }
-      }
-
-      // D. 기존 내 기기 데이터가 클라우드에 없었다면 즉시 클라우드로 올리기
-      if (hasCloudNeedsUpdate) {
-        await fetch(SYNC_SERVER_URL, {
-          method: "POST",
-          body: JSON.stringify(localData)
-        });
-        console.log("☁️ 기존 기기 데이터 클라우드 최초 업로드 완료!");
-      }
-
-      console.log("☁️ 구글 클라우드 양방향 동기화 완료!");
-
-      // 데이터가 새로 들어왔을 경우 1회 화면 새로고침하여 반영
-      if (hasLocalUpdated && !sessionStorage.getItem('synced_once')) {
-        sessionStorage.setItem('synced_once', 'true');
-        location.reload();
-      }
-    } catch (err) {
-      console.error("❌ 동기화 실패:", err);
-    } finally {
-      isSyncing = false;
-    }
-  }
-
-  // 2. 실시간 로컬 변경 사항 클라우드 전송
-  async function syncSaveToCloud() {
-    if (isSyncing || !SYNC_SERVER_URL || SYNC_SERVER_URL.includes("YOUR_DEPLOY_ID")) return;
-    try {
-      const localData = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        localData[key] = localStorage.getItem(key);
-      }
-      await fetch(SYNC_SERVER_URL, {
-        method: "POST",
-        body: JSON.stringify(localData)
-      });
-      console.log("☁️ 클라우드 자동 저장 완료!");
-    } catch (err) {
-      console.error("❌ 저장 실패:", err);
-    }
-  }
-
-  // localStorage.setItem 가로채기
-  localStorage.setItem = function(key, value) {
-    originalSetItem.apply(this, arguments);
-    if (!isSyncing) {
-      syncSaveToCloud();
-    }
-  };
-
-  // 페이지 접속 직시 양방향 동기화 실행
-  document.addEventListener('DOMContentLoaded', () => {
-    syncFullBidirectional();
-  });
-</script>
+<script>window.FLOVE_SYNC_CONFIG={"page":"plan","keys":["flove-active-preset","flove-custom-hex","flove-last-save"],"plan":true};</script>
+<script src="sync-v2.js?v=2.0.2"></script>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -741,7 +645,7 @@
         }
 
         // --- 6. AUTO-SAVE & ROLLOVER SYSTEM ---
-        function resetAllData() { if (confirm("정말로 모든 데이터를 초기화하시겠습니까?")) { localStorage.clear(); location.reload(); } }
+        function resetAllData(){FloveSync.resetPlan();}
 
         function saveAndRollover() {
             const now = new Date();
@@ -868,7 +772,7 @@
             updateStats();
         }
 
-        function toggleTask(taskId) { localStorage.setItem(taskId, document.getElementById(taskId).checked ? 'true' : 'false'); selectDate(selectedDateStr); }
+        function toggleTask(taskId){FloveSync.saveLocal(taskId,document.getElementById(taskId).checked?'true':'false');selectDate(selectedDateStr);FloveSync.markSaved();}
 
         function updateStats() {
             let totalTasks = 0, totalChecked = 0, conceptTasks = 0, conceptChecked = 0, gichulTasks = 0, gichulChecked = 0, koreanTasks = 0, koreanChecked = 0;
@@ -1033,6 +937,9 @@
             if (savedPreset === 'custom') { applyCustomHex(localStorage.getItem('flove-custom-hex') || '#22c55e'); } 
             else { selectThemePreset(savedPreset); }
         });
-    </script>
+    
+// Flove V2 screen adapter
+FloveSync.register({editing:()=>false,refresh:()=>{loadData();renderDateList();selectDate(selectedDateStr);restoreCheckStates();updateStats();updateTree();const preset=localStorage.getItem('flove-active-preset')||'clover';if(preset==='custom'){applyThemeStyles(localStorage.getItem('flove-custom-hex')||'#22c55e','#f8fafc',false,'none');}else{const t=themePresets[preset];if(t)applyThemeStyles(t.hex,t.bg,t.isDark,t.pattern);}}});
+</script>
 </body>
 </html>
