@@ -1,0 +1,51 @@
+name: Link math baseline reader
+on:
+  push:
+    branches: [fix/sync-merge-ui]
+    paths:
+      - math-baseline-reader.js
+      - tests/math-baseline-reader.test.cjs
+      - .github/workflows/link-math-baseline-reader.yml
+permissions:
+  contents: write
+concurrency:
+  group: link-math-baseline-reader
+  cancel-in-progress: false
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/sync-merge-ui
+      - name: Test read-only bridge
+        run: node tests/math-baseline-reader.test.cjs
+      - name: Verify original and add only the two script tags
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,re,subprocess,tempfile
+          p=Path('math.html');raw=p.read_bytes();text=raw.decode('utf-8')
+          anchor='<script src="sync-v2.js?v=2.0.2"></script>'
+          added='\n<script src="sync-state-store.js?v=1.0.0"></script>\n<script src="math-baseline-reader.js?v=1.0.0"></script>'
+          if text.count(added)==1:
+              print('Already linked; math.html left unchanged')
+          else:
+              sha=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+              if sha!='62f4fbc8866350a0df29d5bee2d503f5019e9791' or text.count(anchor)!=1:
+                  raise SystemExit('Unexpected math.html version; no overwrite')
+              updated=text.replace(anchor,anchor+added,1)
+              scripts='\n'.join(re.findall(r'<script\b[^>]*>([\s\S]*?)</script>',updated,re.I))
+              with tempfile.TemporaryDirectory() as td:
+                  check=Path(td)/'check.js';check.write_text(scripts,encoding='utf-8')
+                  subprocess.run(['node','--check',str(check)],check=True)
+              p.write_text(updated,encoding='utf-8')
+          PY
+      - name: Commit only math.html to the work branch
+        run: |
+          if git diff --quiet -- math.html; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add math.html
+          git commit -m "Load read-only baseline module in math screen"
+          git push origin HEAD:fix/sync-merge-ui
