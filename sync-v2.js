@@ -59,3 +59,12 @@ function boot(){
 window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:cycle,_test:{decide,validate}};
 window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i.test(String(e.message))){stopped=true;status('앱 데이터 오류 — 자동 동기화 중단: '+e.message,true);}});document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0));
 })();
+
+/* Daily welcome loader; the synchronization logic above is unchanged. */
+(() => {
+  if (window.top !== window.self) return;
+  const script = document.createElement('script');
+  script.src = new URL('daily-welcome.js?v=1.0.0', document.currentScript.src).href;
+  script.onerror = () => console.warn('[Flove] Daily welcome could not be loaded; study tools remain available.');
+  document.head.appendChild(script);
+})();
