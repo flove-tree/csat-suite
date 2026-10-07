@@ -60,12 +60,18 @@
       (i ? '<w:r><w:tab/></w:r>' : '') + '<w:r><w:t xml:space="preserve">' + esc(part) + '</w:t></w:r>'
     ).join('');
   }
+  function actionText(line) {
+    // Remove only explicit bullet/decorative prefixes, never minus signs or numbers.
+    return line.replace(/^[ \t]*(?:(?:[•●◦▪▫‣⁃]|💡\uFE0F?)[ \t]*)+/u, '');
+  }
   function paragraph(text, options = {}) {
-    const style = options.style || 'Normal';
+    const style = options.style || (options.bullet ? 'ListParagraph' : 'Normal');
     const properties = '<w:pStyle w:val="' + style + '"/>' +
       (options.keepNext ? '<w:keepNext/>' : '<w:keepNext w:val="0"/>') +
       (options.keepLines ? '<w:keepLines/>' : '<w:keepLines w:val="0"/>') +
-      '<w:widowControl/><w:snapToGrid w:val="0"/>' +
+      '<w:widowControl/>' +
+      (options.bullet ? '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>' : '') +
+      '<w:snapToGrid w:val="0"/>' +
       '<w:spacing w:before="0" w:after="' + (options.after == null ? 0 : options.after) + '" w:line="312" w:lineRule="auto"/>' +
       '<w:jc w:val="left"/>';
     return '<w:p><w:pPr>' + properties + '</w:pPr>' + runs(text) + '</w:p>';
@@ -151,11 +157,12 @@
             try { image = await imageLoader(item.image); }
             catch (error) { throw new Error('[' + (item.title || unit) + '] 사진 처리 실패: ' + error.message); }
           }
-          const lines = String(item.content == null ? '' : item.content).replace(/\r\n?/g, '\n').split('\n');
+          const lines = String(item.content == null ? '' : item.content).replace(/\r\n?/g, '\n').split('\n').map(actionText);
           const compact = lines.length <= 6 && lines.join('').length <= 400;
           for (let i = 0; i < lines.length; i++) {
             const last = i === lines.length - 1;
             body += paragraph(lines[i], {
+              bullet: lines[i].trim().length > 0,
               keepNext: image ? (compact || last) : false,
               keepLines: !!image && compact,
               after: last ? (image ? 120 : 240) : 0
@@ -175,15 +182,18 @@
     const font = '<w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="맑은 고딕" w:cs="Malgun Gothic"/>';
     const styles = XML + `<w:styles xmlns:w="${W}"><w:docDefaults><w:rPrDefault><w:rPr>${font}<w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:snapToGrid w:val="0"/><w:spacing w:after="0" w:line="312" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>` +
       '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>' +
+      '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:next w:val="ListParagraph"/><w:qFormat/><w:pPr><w:ind w:left="360" w:hanging="180"/></w:pPr></w:style>' +
       [['Title',36,'DC2626'],['Subtitle',20,'64748B'],['Heading1',28,'DC2626'],['Heading2',24,'B45309']].map(([id,size,color]) =>
         `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${id}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:rPr>${id === 'Subtitle' ? '' : '<w:b/>'}<w:color w:val="${color}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`
       ).join('') + '</w:styles>';
+    const numbering = XML + `<w:numbering xmlns:w="${W}"><w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="•"/><w:lvlJc w:val="left"/><w:pPr><w:tabs><w:tab w:val="num" w:pos="360"/></w:tabs><w:ind w:left="360" w:hanging="180"/></w:pPr><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="22"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
     return zip([
-      {name:'[Content_Types].xml', data:XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>'},
+      {name:'[Content_Types].xml', data:XML + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>'},
       {name:'_rels/.rels', data:XML + `<Relationships xmlns="${P}"><Relationship Id="rId1" Type="${R}/officeDocument" Target="word/document.xml"/></Relationships>`},
       {name:'word/document.xml', data:XML + `<w:document xmlns:w="${W}" xmlns:r="${R}" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${body}</w:body></w:document>`},
       {name:'word/styles.xml', data:styles},
-      {name:'word/_rels/document.xml.rels', data:XML + `<Relationships xmlns="${P}"><Relationship Id="rIdStyles" Type="${R}/styles" Target="styles.xml"/>${relations.join('')}</Relationships>`},
+      {name:'word/numbering.xml', data:numbering},
+      {name:'word/_rels/document.xml.rels', data:XML + `<Relationships xmlns="${P}"><Relationship Id="rIdStyles" Type="${R}/styles" Target="styles.xml"/><Relationship Id="rIdNumbering" Type="${R}/numbering" Target="numbering.xml"/>${relations.join('')}</Relationships>`},
       ...media
     ]);
   }
