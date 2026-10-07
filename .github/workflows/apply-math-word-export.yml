@@ -1,0 +1,60 @@
+name: Apply math photo DOCX export
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-math-word-export.yml']
+permissions:
+  contents: write
+concurrency:
+  group: apply-math-word-export
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Check Word module syntax
+        run: node --check math-word-export.js
+      - name: Patch only the reviewed math export
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          
+          path = Path("math.html")
+          data = path.read_bytes()
+          sha = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+          if sha == '5f9f84d0130bf2ac06540389bffa5f9336eb478e':
+              raise SystemExit(0)
+          if sha != '62f4fbc8866350a0df29d5bee2d503f5019e9791':
+              raise SystemExit("math.html changed since review; refusing to overwrite")
+          text = data.decode("utf-8")
+          start_marker = '  // Simplified & Grouped Word (.doc) Export Function (주제 제거 & 단원별 깔끔 모음)'
+          end_marker = '  // Export to PDF'
+          if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+              raise SystemExit("Export function markers are not unique")
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          text = text[:start] + "  // Native DOCX export: action text, its attachment, then the next action.\n  async function exportToWord() {\n    if (!window.FloveMathWord) {\n      alert('Word 내보내기 모듈을 불러오지 못했습니다. 페이지를 새로고침해주세요.');\n      return;\n    }\n    await window.FloveMathWord.download(notes, curriculumData);\n  }\n\n" + text[end:]
+          if text.count("</head>") != 1 or text.count('<button class="btn" onclick="exportToWord()" title="Word 문서로 다운로드">📝 Word 내보내기</button>') != 1:
+              raise SystemExit("Expected page structure not found")
+          text = text.replace("</head>", '<script src="math-word-export.js?v=1.0.0" defer></script>\n</head>', 1)
+          text = text.replace('<button class="btn" onclick="exportToWord()" title="Word 문서로 다운로드">📝 Word 내보내기</button>', '<button class="btn" onclick="exportToWord()" title="행동강령 바로 아래에 첨부 사진을 포함한 DOCX 다운로드">📝 Word 내보내기 (사진 포함)</button>', 1)
+          result = text.encode("utf-8")
+          result_sha = hashlib.sha1(b"blob " + str(len(result)).encode() + b"\0" + result).hexdigest()
+          if result_sha != '5f9f84d0130bf2ac06540389bffa5f9336eb478e':
+              raise SystemExit("Patch output differs from reviewed version")
+          path.write_bytes(result)
+          PY
+      - name: Commit the scoped math page change
+        shell: bash
+        run: |
+          if git diff --quiet -- math.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- math.html
+          git commit -m 'Enable photo-inclusive DOCX export on math dashboard'
+          git push origin HEAD:main
