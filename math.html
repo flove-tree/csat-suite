@@ -810,6 +810,7 @@
       }
     }
   </style>
+<script src="math-word-export.js?v=1.0.0" defer></script>
 </head>
 <body>
 <!-- Universal Navigation Bar Header -->
@@ -932,7 +933,7 @@
       <p id="headerSubText">수학 시험 전체에 최우선으로 적용할 절대적 핵심 행동강령 및 실수 방지 원칙</p>
     </div>
     <div class="export-btns">
-      <button class="btn" onclick="exportToWord()" title="Word 문서로 다운로드">📝 Word 내보내기</button>
+      <button class="btn" onclick="exportToWord()" title="행동강령 바로 아래에 첨부 사진을 포함한 DOCX 다운로드">📝 Word 내보내기 (사진 포함)</button>
       <button class="btn" onclick="exportJSON()">💾 백업 저장</button>
       <button class="btn" onclick="importJSON()">📂 백업 불러오기</button>
       <button class="btn btn-secondary" onclick="exportToPDF()" title="PDF 문서로 저장">📥 PDF 내보내기</button>
@@ -1973,77 +1974,13 @@
               .replace(/'/g, "&#039;");
   }
 
-  // Simplified & Grouped Word (.doc) Export Function (주제 제거 & 단원별 깔끔 모음)
-  function exportToWord() {
-    if (notes.length === 0) {
-      alert('내보낼 오답 노트 기록이 없습니다.');
+  // Native DOCX export: action text, its attachment, then the next action.
+  async function exportToWord() {
+    if (!window.FloveMathWord) {
+      alert('Word 내보내기 모듈을 불러오지 못했습니다. 페이지를 새로고침해주세요.');
       return;
     }
-
-    let htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>수학 통합 파이널 실전 행동강령 리포트</title>
-      <style>
-        body { font-family: '맑은 고딕', 'Malgun Gothic', sans-serif; line-height: 1.7; color: #1e293b; padding: 20px; }
-        h1 { color: #dc2626; font-size: 18pt; border-bottom: 2px solid #dc2626; padding-bottom: 8px; margin-bottom: 5px; }
-        .sub-header { font-size: 10pt; color: #64748b; margin-bottom: 20px; }
-        h2.subject-title { color: #dc2626; font-size: 14pt; margin-top: 25px; margin-bottom: 12px; background-color: #fef2f2; padding: 6px 12px; border-left: 4px solid #dc2626; }
-        h2.unit-title { color: #b45309; font-size: 12pt; margin-top: 18px; margin-bottom: 8px; background-color: #fffbeb; padding: 5px 10px; border-left: 4px solid #f59e0b; }
-        .unit-box { margin-bottom: 15px; padding: 12px 16px; border: 1px solid #fde68a; border-radius: 8px; background-color: #ffffff; border-left: 4px solid #f59e0b; }
-        .action-item { font-size: 10.5pt; white-space: pre-wrap; color: #1f2937; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #fde68a; }
-        .action-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-      </style>
-      </head>
-      <body>
-        <h1>⚡ 수학 통합 파이널 실전 행동강령 리포트</h1>
-        <div class="sub-header">생성일자: ${new Date().toLocaleDateString('ko-KR')} | 총 ${notes.length}개 항목 수록</div>
-    `;
-
-    const subjects = [
-      { key: 'absolute', title: '🔥 최우선 절대 행동강령' },
-      { key: 'math1', title: '📐 수학 I 행동강령' },
-      { key: 'math2', title: '📈 수학 II 행동강령' },
-      { key: 'stats', title: '🎲 확률과 통계 행동강령' }
-    ];
-
-    subjects.forEach(subj => {
-      const subjNotes = notes.filter(n => (n.subject || 'absolute') === subj.key);
-      if (subjNotes.length > 0) {
-        htmlContent += `<h2 class="subject-title">${subj.title}</h2>`;
-        const info = curriculumData[subj.key];
-        const grouped = {};
-        info.units.forEach(u => { grouped[u] = []; });
-        subjNotes.forEach(n => {
-          if (!grouped[n.unit]) grouped[n.unit] = [];
-          grouped[n.unit].push(n);
-        });
-
-        Object.keys(grouped).forEach(unitName => {
-          const unitItems = grouped[unitName];
-          if (unitItems.length > 0) {
-            htmlContent += `<h2 class="unit-title">📌 ${escapeHtml(unitName)}</h2>`;
-            htmlContent += `<div class="unit-box">`;
-            unitItems.forEach(item => {
-              htmlContent += `
-                <div class="action-item">💡 ${escapeHtml(item.content)}</div>
-              `;
-            });
-            htmlContent += `</div>`;
-          }
-        });
-      }
-    });
-
-    htmlContent += `</body></html>`;
-
-    const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `수학통합_행동강령_리포트_${new Date().toISOString().slice(0,10)}.doc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    await window.FloveMathWord.download(notes, curriculumData);
   }
 
   // Export to PDF
