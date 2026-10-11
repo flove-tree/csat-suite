@@ -29,3 +29,49 @@ function mount(){
 }
 if(!mount()){const wait=new MutationObserver(()=>{if(mount())wait.disconnect();});wait.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>wait.disconnect(),10000);}
 })();
+
+/* Timer initial viewport alignment only; no timer or storage changes. */
+(() => {
+'use strict';
+if((window.FLOVE_SYNC_CONFIG||{}).page!=='timer'||window.__floveTimerInitialCenterV1)return;
+const state=window.__floveTimerInitialCenterV1={status:'waiting'};
+const events=new AbortController();let raf=0,done=false;
+const finish=s=>{if(done)return;done=true;state.status=s;cancelAnimationFrame(raf);events.abort();};
+const cancel=()=>finish('cancelled');
+for(const name of ['wheel','touchstart','touchmove','pointerdown','keydown','input'])document.addEventListener(name,cancel,{capture:true,passive:true,signal:events.signal});
+window.addEventListener('scroll',cancel,{passive:true,signal:events.signal});
+function start(){
+ if(done)return;
+ const nav=performance.getEntriesByType('navigation')[0];
+ if((nav&&nav.type==='back_forward')||window.scrollY>1){finish('position-preserved');return;}
+ let loadReady=document.readyState==='complete',fontsReady=!document.fonts||document.fonts.status==='loaded';
+ window.addEventListener('load',()=>{loadReady=true;},{once:true,signal:events.signal});
+ if(document.fonts)document.fonts.ready.then(()=>{fontsReady=true;},()=>{fontsReady=true;});
+ let begun=0,stableAt=0,last='';
+ function tick(now){
+  if(done)return;
+  const target=document.getElementById('clockWrapper');
+  if(!target){finish('target-missing');return;}
+  const r=target.getBoundingClientRect();let visible=!document.hidden&&r.width>0&&r.height>0&&window.innerHeight>0;
+  try{const f=window.frameElement;if(f){const b=f.getBoundingClientRect();visible=visible&&b.width>0&&b.height>0;}}catch(_){}
+  if(!visible){begun=0;stableAt=0;last='';raf=requestAnimationFrame(tick);return;}
+  if(!begun)begun=now;
+  const key=[Math.round(r.top+window.scrollY),Math.round(r.height),Math.round(window.innerHeight),document.documentElement.scrollHeight].join(':');
+  if(key!==last){last=key;stableAt=now;}
+  const settled=now-stableAt>=200;
+  if(!settled&&now-begun>=3000){finish('layout-unstable');return;}
+  if(!settled||(!(loadReady&&fontsReady)&&now-begun<1800)){raf=requestAnimationFrame(tick);return;}
+  const badge=document.getElementById('statusBadge');
+  if(badge&&badge.textContent.trim()!=='준비됨'){finish('timer-use-preserved');return;}
+  const active=document.activeElement;
+  if(active&&active.closest('input,textarea,select,button,[contenteditable="true"]')){finish('focus-preserved');return;}
+  const root=document.scrollingElement||document.documentElement;
+  const max=Math.max(0,root.scrollHeight-root.clientHeight);
+  const top=Math.max(0,Math.min(max,window.scrollY+r.top+r.height/2-window.innerHeight/2));
+  finish('completed');
+  if(Math.abs(top-window.scrollY)>1)window.scrollTo({top,left:window.scrollX,behavior:'instant'});
+ }
+ raf=requestAnimationFrame(tick);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true,signal:events.signal});else start();
+})();
