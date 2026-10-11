@@ -6,9 +6,9 @@ const cfg=window.FLOVE_SYNC_CONFIG||{page:'none',keys:[]};
 const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k),val=(o,k)=>has(o,k)?o[k]:null;
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const planKey=k=>/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9_-]+$/.test(k)||/^rolled-id-\d+-\d+$/.test(k)||/^flove-rolled-\d{4}-\d{2}-\d{2}$/.test(k)||['flove-active-preset','flove-custom-hex','flove-last-save'].includes(k);
-const own=k=>cfg.keys.includes(k)||(cfg.plan&&planKey(k));
+const own=k=>cfg.keys.includes(k)||(cfg.plan&&planKey(k))||(cfg.readOnly&&cfg.hubStatus&&cfg.inspectPlan&&planKey(k));
 const meta='__flove_sync_base_v2_'+cfg.page;
-let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl;
+let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks;
 function decide(known,b,l,r){if(l===r)return 'equal';if(!known)return l===null&&r!==null?'pull':'conflict';if(l===b)return 'pull';if(r===b)return 'push';return 'conflict';}
 function validate(k,v){
  if(v===null)return;if(typeof v!=='string')throw Error('서버 값 형식 오류: '+k);
@@ -19,7 +19,38 @@ function validate(k,v){
 }
 function local(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(own(k))d[k]=localStorage.getItem(k);}return d;}
 function idle(){return !dirty&&(!adapter.editing||!adapter.editing());}
-function status(s,bad=false){if(label){label.textContent=s;label.style.color=bad?'#b91c1c':'#166534';}}
+function status(s,bad=false){if(hubLinks){hubLinks.hidden=true;hubLinks.replaceChildren();}if(label){label.textContent=s;label.style.color=bad?'#b91c1c':'#166534';}}
+const hubGroups=[
+ {name:'국어',file:'korean.html',keys:['saegibun_notes_v3']},
+ {name:'수학',file:'math.html',keys:['math_review_notes_v3']},
+ {name:'영어',file:'eng.html',keys:['english_exam_logs_v14']},
+ {name:'생활과 윤리',file:'sang.html',keys:['liv_ethic_notes_v11']},
+ {name:'사회문화',file:'samun.html',keys:['samun_notes_v1']},
+ {name:'플래너',file:'plan.html',keys:[]}
+];
+function hubActions(pull,ops,bad,ready){
+ const applyKeys=pull.filter(k=>!(cfg.inspectPlan&&planKey(k)));
+ const pending=[...bad,...ops.map(o=>o.key),...pull.filter(k=>!ready||(cfg.inspectPlan&&planKey(k)))];
+ return {applyKeys:ready?applyKeys:[],pending:[...new Set(pending)]};
+}
+function hubReport(keys){
+ const pending=new Set(keys),groups=hubGroups.filter(g=>g.keys.some(k=>pending.has(k))||(g.file==='plan.html'&&[...pending].some(planKey)));
+ const unknown=[...pending].filter(k=>!planKey(k)&&!hubGroups.some(g=>g.keys.includes(k)));
+ return {groups,unknown,needed:pending.size>0};
+}
+function renderHub(keys){
+ const report=hubReport(keys),time=new Date().toLocaleTimeString('ko-KR');
+ const names=report.groups.map(g=>g.name);if(report.unknown.length)names.push('기타 데이터');
+ status(report.needed?'확인 필요: '+names.join(' · ')+' — 각 화면에서 기록을 확인해 주세요.':'전체 데이터 동기화 완료 · '+time,report.needed);
+ if(!hubLinks)return;
+ hubLinks.replaceChildren();hubLinks.hidden=!report.needed;
+ for(const g of report.groups){
+  const a=document.createElement('a');a.href=g.file;a.textContent=g.name+'에서 확인 →';
+  Object.assign(a.style,{display:'inline-block',margin:'6px 8px 0 0',padding:'6px 10px',border:'1px solid #cbd5e1',borderRadius:'8px',color:'#334155',background:'#f8fafc',textDecoration:'none'});
+  a.addEventListener('click',e=>{if(e.button===0&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&typeof window.launchTool==='function'){e.preventDefault();window.launchTool(g.file);}});
+  hubLinks.appendChild(a);
+ }
+}
 function remember(){sessionStorage.setItem(meta,JSON.stringify(base));}
 function snapshot(reason){return {format:'flove-sync-recovery-v2',createdAt:new Date().toISOString(),reason,page:cfg.page,local:local(),cloud:Object.fromEntries(Object.entries(cloud).filter(([k])=>own(k)))};}
 function backup(reason){const r=snapshot(reason);localStorage.setItem('__flove_sync_recovery_'+Date.now()+'_'+Math.random().toString(36).slice(2),JSON.stringify(r));return r;}
@@ -33,7 +64,10 @@ async function cycle(){
  if(busy||stopped||document.hidden)return;if(!cfg.keys.length&&!cfg.plan){status('타이머: 클라우드 저장 대상 없음');return;}busy=true;
  try{const p=await request();cloud=p.data;const d=local(),keys=[...new Set([...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own)])],pull=[],ops=[],bad=[];
  for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle())base[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
- if(cfg.readOnly){if(pull.length&&idle())apply(pull);remember();show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;}
+ if(cfg.readOnly){
+  if(cfg.hubStatus){const action=hubActions(pull,ops,bad,idle());if(action.applyKeys.length)apply(action.applyKeys);remember();show([]);renderHub(action.pending);return;}
+  if(pull.length&&idle())apply(pull);remember();show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;
+ }
  show(bad);if(bad.length)return;if(pull.length){if(!idle()){status('다른 기기 변경 대기 — 입력을 저장하거나 취소하세요',true);return;}apply(pull);}
  if(ops.length){status('서버 저장 중…');const s=await request({protocol:2,ops});if(s.result==='conflict'){cloud=s.data;show(s.keys||ops.map(o=>o.key));return;}ops.forEach(o=>{base[o.key]=o.value;});remember();status('서버 저장 성공 · '+new Date().toLocaleTimeString('ko-KR'));}else{remember();status('동기화 확인 · '+new Date().toLocaleTimeString('ko-KR'));}
  }catch(e){status('동기화 실패 — 기기 기록 유지: '+e.message,true);console.error('[Flove Sync V2]',e);}finally{busy=false;}
@@ -51,7 +85,7 @@ function resetPlan(){if(!confirm('계획표 기록만 초기화할까요? 다른
 function boot(){
  const box=document.createElement('section');box.id='flove-sync-v2-panel';Object.assign(box.style,{position:'relative',zIndex:'10000',margin:'12px',padding:'12px',border:'1px solid #cbd5e1',borderRadius:'12px',background:'#fff',color:'#0f172a',fontSize:'13px'});label=document.createElement('div');box.appendChild(label);status('서버 연결 확인 중…');
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.style,{margin:'6px',padding:'6px',border:'1px solid #cbd5e1',borderRadius:'6px',color:'#0f172a',background:'#f8fafc'});b.addEventListener('click',fn);return b;};
- box.append(button('다시 조회',cycle),button('양쪽 원본 내려받기',()=>{try{download();}catch(e){alert(e.message);}}));details=document.createElement('div');details.hidden=true;keysEl=document.createElement('pre');keysEl.style.whiteSpace='pre-wrap';details.append(keysEl,button('서버 기록 사용',()=>choose('cloud')),button('이 기기 기록 사용',()=>choose('local')));box.appendChild(details);document.body.prepend(box);
+ box.append(button('다시 조회',cycle),button('양쪽 원본 내려받기',()=>{try{download();}catch(e){alert(e.message);}}));details=document.createElement('div');details.hidden=true;keysEl=document.createElement('pre');keysEl.style.whiteSpace='pre-wrap';details.append(keysEl,button('서버 기록 사용',()=>choose('cloud')),button('이 기기 기록 사용',()=>choose('local')));box.appendChild(details);if(cfg.readOnly&&cfg.hubStatus){hubLinks=document.createElement('nav');hubLinks.setAttribute('aria-label','확인이 필요한 학습 화면');hubLinks.hidden=true;box.appendChild(hubLinks);}document.body.prepend(box);
  try{const raw=sessionStorage.getItem(meta);if(raw!==null){base=JSON.parse(raw);if(!obj(base))throw Error('기준 데이터 손상');}}catch(e){stopped=true;status('기준 데이터 오류 — 자동 저장 중단',true);return;}
  const track=e=>{if(cfg.plan||!e.target.closest||!e.target.closest('form,#tab-record')||/search|filter|sort/i.test(e.target.id||''))return;dirty=true;};document.addEventListener('input',track,true);document.addEventListener('change',track,true);document.addEventListener('reset',()=>setTimeout(()=>{dirty=false;},0),true);
  window.addEventListener('storage',e=>{if(e.key&&own(e.key)&&idle()){try{refresh([e.key]);}catch(err){status('다른 탭 갱신 실패: '+err.message,true);}}});document.addEventListener('visibilitychange',()=>{if(!document.hidden)cycle();});window.addEventListener('online',cycle);setInterval(cycle,10000);setTimeout(cycle,0);
