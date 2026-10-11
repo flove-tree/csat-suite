@@ -152,3 +152,13 @@ window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i
   script.onerror=()=>console.warn('[Flove Ethics UI] Keeping original sync panel.');
   document.head.appendChild(script);
 })();
+
+/* Pilot: compact sync presentation for Samun only. */
+(() => {
+  const cfg=window.FLOVE_SYNC_CONFIG||{};
+  if(cfg.page!=='samun'||cfg.readOnly)return;
+  const script=document.createElement('script');
+  script.src=new URL('samun-sync-glass.js?v=1.0.0',document.currentScript.src).href;
+  script.onerror=()=>console.warn('[Flove Samun UI] Keeping original sync panel.');
+  document.head.appendChild(script);
+})();
