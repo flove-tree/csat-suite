@@ -112,3 +112,13 @@ window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i
   script.onerror=()=>console.warn('[Flove Hub UI] Keeping original sync panel.');
   document.head.appendChild(script);
 })();
+
+/* Pilot: compact sync presentation for math only. */
+(() => {
+  const cfg=window.FLOVE_SYNC_CONFIG||{};
+  if(cfg.page!=='math'||cfg.readOnly)return;
+  const script=document.createElement('script');
+  script.src=new URL('math-sync-glass.js?v=1.0.0',document.currentScript.src).href;
+  script.onerror=()=>console.warn('[Flove Math UI] Keeping original sync panel.');
+  document.head.appendChild(script);
+})();
