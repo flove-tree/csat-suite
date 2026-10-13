@@ -108,6 +108,7 @@ function create(options) {
             check();warn('draft-restore-failed',error);
             return {ok:false,reason:'draft-restore-failed'};
         }
+        context=copy(draft.context);
         check();
         return {ok:true};
     }
