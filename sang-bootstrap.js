@@ -20,9 +20,9 @@ document.addEventListener('DOMContentLoaded',()=>{
         return previousSave.apply(this,args);
     };
     saveNotes=guardedSave;
-    Promise.resolve().then(()=>{
+    setTimeout(()=>{
         bootDispatch=false;
         if (saveNotes===guardedSave) saveNotes=previousSave;
-    });
+    },0);
 },{capture:true,once:true});
 })();
