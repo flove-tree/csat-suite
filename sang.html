@@ -56,8 +56,10 @@ header{text-align:center;margin-bottom:24px;}.badge{display:inline-block;backgro
 <p class="order-help">▲ ▼: 순서 변경 · 위치…: 원하는 위치로 이동 · 수정: 저장한 선지 편집. 단원 정렬은 전체 사상가/전체 보기에서 가능합니다. 새 선지는 맨 아래에 추가됩니다.</p><main class="note-list" id="noteList"></main>
 <p style="margin-top:24px;font-size:.85rem;color:#64748b;">Word에도 선택한 교정 위치와 × 표시가 반영됩니다. 회색 배경 없음 / 본문 기본 9pt / 교정 8pt. 이전 JSON 백업을 불러올 수 있으며 새 백업은 위치와 순서도 저장합니다. Word 내보내기는 인터넷 연결이 필요합니다.</p>
 <div class="footer-actions"><label style="font-size:.85rem;align-self:center;">Word 용지 <select id="wordPageDirection" style="width:auto;padding:6px;"><option value="portrait">A4 세로</option><option value="landscape">A4 가로 · 긴 선지용</option></select></label><label style="font-size:.85rem;align-self:center;">본문 <select id="wordFontSize" style="width:auto;padding:6px;"><option value="8">8pt</option><option value="8.5">8.5pt</option><option value="9" selected>9pt · 기본</option><option value="9.5">9.5pt</option><option value="10">10pt</option></select></label><button id="compactWordButton" class="btn-action btn-word" onclick="exportToWord()">📄 배경 없는 텍스트 Word (.docx)</button><button class="btn-action" onclick="exportJSON()">💾 백업 저장</button><button class="btn-action" onclick="importJSON()">📂 백업 불러오기</button><input type="file" id="fileInput" style="display:none;" accept=".json" onchange="loadJSON(event)"></div>
+<script src="input-protection.js?v=1.0.1"></script>
 <script src="sang-core.js?v=1"></script>
 <script src="sang-word-engine.js?v=1"></script>
 <script src="sang-unit-grouping.js?v=1"></script>
+<script src="sang-input-protection.js?v=1.0.0"></script>
 </body>
 </html>
