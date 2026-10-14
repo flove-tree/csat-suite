@@ -8,7 +8,7 @@ test.use({
   trace: 'retain-on-failure'
 });
 
-test('ethics review page opens and input protection loads without real cloud access', async ({ page, context }, testInfo) => {
+async function openReviewPage(page, context) {
   const pageErrors = [];
   const mockedApiCalls = [];
   const blockedExternalRequests = [];
@@ -79,6 +79,12 @@ test('ethics review page opens and input protection loads without real cloud acc
     commonGuard: true, ethicsGuard: true, bootstrapGuard: true, syncPendingApi: true
   });
 
+  return { pageErrors, mockedApiCalls, blockedExternalRequests, mockCloud };
+}
+
+test('ethics review page opens and input protection loads without real cloud access', async ({ page, context }, testInfo) => {
+  const { pageErrors, mockedApiCalls, blockedExternalRequests } = await openReviewPage(page, context);
+
   const initialStorage = await page.evaluate(() => ({
     notes: localStorage.getItem('liv_ethic_notes_v11'),
     layout: localStorage.getItem('liv_ethic_layout_v11')
@@ -89,6 +95,50 @@ test('ethics review page opens and input protection loads without real cloud acc
   await page.screenshot({ path: testInfo.outputPath('ethics-startup.png'), fullPage: true });
   await testInfo.attach('startup-check', {
     body: Buffer.from(JSON.stringify({ initialStorage, pageErrors, mockedApiCalls, blockedExternalRequests }, null, 2)),
+    contentType: 'application/json'
+  });
+});
+
+test('typed ethics proposition and memo remain in a local draft without saving notes', async ({ page, context }, testInfo) => {
+  const { pageErrors, mockedApiCalls, blockedExternalRequests, mockCloud } = await openReviewPage(page, context);
+  const input = {
+    unit: '생명 윤리',
+    thinker: '칸트',
+    original: '검증용 선지입니다.',
+    memo: '검증용 메모입니다.'
+  };
+
+  await page.locator('#unitSelect').selectOption(input.unit);
+  await page.locator('#thinker').fill(input.thinker);
+  await page.locator('#originalText').fill(input.original);
+  await page.locator('#memo').fill(input.memo);
+
+  await expect.poll(() => page.evaluate(() => {
+    const controller = window.FloveEthicsInput;
+    if (!controller) return null;
+    const draft = controller.guard.listDrafts().find(item => item.key === controller.guard.draftKey);
+    if (!draft) return null;
+    return {
+      unit: draft.state.unit,
+      thinker: draft.state.thinker,
+      original: draft.state.original,
+      memo: draft.state.memo,
+      editingId: draft.context.editingId,
+      dirty: controller.guard.hasUnsavedChanges()
+    };
+  }), { timeout: 5000 }).toEqual({ ...input, editingId: null, dirty: true });
+
+  const confirmedStorage = await page.evaluate(() => ({
+    notes: localStorage.getItem('liv_ethic_notes_v11'),
+    layout: localStorage.getItem('liv_ethic_layout_v11')
+  }));
+  expect(confirmedStorage).toEqual({ notes: null, layout: null });
+  expect(Object.keys(mockCloud).some(key => key.startsWith('liv_ethic_') || key.startsWith('__flove_input_draft_v1:'))).toBe(false);
+  expect(pageErrors).toEqual([]);
+
+  await page.screenshot({ path: testInfo.outputPath('ethics-local-draft.png'), fullPage: true });
+  await testInfo.attach('local-draft-check', {
+    body: Buffer.from(JSON.stringify({ input, confirmedStorage, pageErrors, mockedApiCalls, blockedExternalRequests }, null, 2)),
     contentType: 'application/json'
   });
 });
