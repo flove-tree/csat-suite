@@ -220,3 +220,94 @@ test('local ethics draft can be restored after a page reload without saving note
     contentType: 'application/json'
   });
 });
+
+test('draft restore is blocked while newer ethics input is unsaved', async ({ page, context }, testInfo) => {
+  const { pageErrors, mockedApiCalls, blockedExternalRequests, mockCloud } = await openReviewPage(page, context);
+  const source = {
+    unit: '생명 윤리',
+    thinker: '칸트',
+    original: '이전 초안 검증용 선지.',
+    memo: '이전 초안 검증용 메모.'
+  };
+  const current = {
+    unit: '국가와 시민의 윤리',
+    thinker: '롤스',
+    original: '현재 입력 유지 검증용 선지.',
+    memo: '현재 입력 유지 검증용 메모.'
+  };
+  const readDraftState = key => page.evaluate(key => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const state = JSON.parse(raw).state;
+    return { unit: state.unit, thinker: state.thinker, original: state.original, memo: state.memo };
+  }, key);
+
+  await page.locator('#unitSelect').selectOption(source.unit);
+  await page.locator('#thinker').fill(source.thinker);
+  await page.locator('#originalText').fill(source.original);
+  await page.locator('#memo').fill(source.memo);
+  const sourceDraftKey = await page.evaluate(() => window.FloveEthicsInput.guard.draftKey);
+  await expect.poll(() => readDraftState(sourceDraftKey), { timeout: 5000 }).toEqual(source);
+
+  const reloadDialogTypes = [];
+  const onReloadDialog = async dialog => {
+    reloadDialogTypes.push(dialog.type());
+    if (dialog.type() === 'beforeunload') await dialog.accept();
+    else await dialog.dismiss();
+  };
+  page.on('dialog', onReloadDialog);
+  try {
+    await page.reload({ waitUntil: 'load' });
+  } finally {
+    page.off('dialog', onReloadDialog);
+  }
+  expect(reloadDialogTypes.every(type => type === 'beforeunload')).toBe(true);
+  await expect.poll(() => page.evaluate(() => !!window.FloveEthicsInput?.guard), { timeout: 10000 }).toBe(true);
+  const currentDraftKey = await page.evaluate(() => window.FloveEthicsInput.guard.draftKey);
+  expect(currentDraftKey).not.toBe(sourceDraftKey);
+
+  const panel = page.locator('#ethics-draft-panel');
+  await expect(panel).toBeVisible();
+  await page.locator('#unitSelect').selectOption(current.unit);
+  await page.locator('#thinker').fill(current.thinker);
+  await page.locator('#originalText').fill(current.original);
+  await page.locator('#memo').fill(current.memo);
+  await expect.poll(() => readDraftState(currentDraftKey), { timeout: 5000 }).toEqual(current);
+  await panel.getByLabel('복원할 생윤 입력 초안').selectOption(sourceDraftKey);
+
+  // Reject any unexpected dialog, then fail the test if one appeared.
+  const unexpectedRestoreDialogs = [];
+  const rejectUnexpectedDialog = async dialog => {
+    unexpectedRestoreDialogs.push(dialog.type());
+    await dialog.dismiss();
+  };
+  page.on('dialog', rejectUnexpectedDialog);
+  try {
+    await panel.getByRole('button', { name: '초안 복원', exact: true }).click();
+  } finally {
+    page.off('dialog', rejectUnexpectedDialog);
+  }
+  expect(unexpectedRestoreDialogs).toEqual([]);
+  await expect(panel.getByRole('status')).toHaveText('현재 입력을 먼저 저장하거나 수정 취소한 뒤 복원해 주세요.');
+  await expect(page.locator('#unitSelect')).toHaveValue(current.unit);
+  await expect(page.locator('#thinker')).toHaveValue(current.thinker);
+  await expect(page.locator('#originalText')).toHaveValue(current.original);
+  await expect(page.locator('#memo')).toHaveValue(current.memo);
+  expect(await page.evaluate(() => window.FloveEthicsInput.guard.hasUnsavedChanges())).toBe(true);
+  expect(await readDraftState(sourceDraftKey)).toEqual(source);
+  await expect.poll(() => readDraftState(currentDraftKey), { timeout: 5000 }).toEqual(current);
+
+  const confirmedStorage = await page.evaluate(() => ({
+    notes: localStorage.getItem('liv_ethic_notes_v11'),
+    layout: localStorage.getItem('liv_ethic_layout_v11')
+  }));
+  expect(confirmedStorage).toEqual({ notes: null, layout: null });
+  expect(Object.keys(mockCloud).some(key => key.startsWith('liv_ethic_') || key.startsWith('__flove_input_draft_v1:'))).toBe(false);
+  expect(pageErrors).toEqual([]);
+
+  await page.screenshot({ path: testInfo.outputPath('ethics-restore-blocked.png'), fullPage: true });
+  await testInfo.attach('blocked-restore-check', {
+    body: Buffer.from(JSON.stringify({ source, current, confirmedStorage, reloadDialogTypes, unexpectedRestoreDialogs, pageErrors, mockedApiCalls, blockedExternalRequests }, null, 2)),
+    contentType: 'application/json'
+  });
+});
