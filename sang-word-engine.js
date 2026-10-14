@@ -18,3 +18,46 @@ async function exportToWord(){if(wordBusy)return;if(!notes.length){alert('내보
   const wordHelp=document.querySelector('main#noteList + p');if(wordHelp)wordHelp.textContent=wordHelp.textContent.replace('선택한 교정 위치와 × 표시','선택한 교정 위치와 빨간 취소선');
   noteForm.addEventListener('submit',event=>{if(document.getElementById('recordType').value!=='correction')return;for(const row of pairContainer.children){const wrong=row.querySelector('.wrong-input').value,target=row.querySelector('.target-select').value,action=row.querySelector('.action-select').value,correct=row.querySelector('.correct-input').value;if(!wrong||!target||(action==='replace'&&!correct.trim())){event.preventDefault();event.stopImmediatePropagation();alert('틀린 부분, 교정 위치, 올바른 부분을 확인해 주세요. 취소선만 선택하면 올바른 부분은 비워도 됩니다.');return;}}},true);
 })();
+
+// Install after the unit extension so unchecked exports retain its original behavior.
+document.addEventListener('DOMContentLoaded',()=>{
+  const button=document.getElementById('compactWordButton');
+  if(!button||document.getElementById('wordThinkerFirst')||typeof ethicsOrder!=='function')return;
+  const label=document.createElement('label'),option=document.createElement('input');
+  option.type='checkbox';option.id='wordThinkerFirst';
+  label.htmlFor=option.id;label.style.cssText='display:flex;align-items:center;gap:6px;font-size:.85rem;align-self:center;cursor:pointer';
+  label.title='Word만 학자 → 단원 → 선지 순서로 내보냅니다. 학자는 기존 단원 순서에서 처음 등장하는 순서입니다.';
+  option.style.cssText='width:16px;height:16px;accent-color:#4f46e5';
+  label.append(option,document.createTextNode('학자 중심으로 묶기'));button.before(label);
+  const unitExport=exportToWord;
+  exportToWord=async function(){
+    if(!option.checked)return unitExport();
+    if(wordBusy)return;
+    if(!notes.length){alert('내보낼 오답 선지가 없습니다.');return;}
+    syncCategoryOrder();
+    const snapshot=JSON.parse(JSON.stringify(notes)),order=ethicsOrder(snapshot,[...categoryOrder]),byKey=new Map(),thinkers=new Map();
+    for(const note of snapshot){const key=getCategory(note);if(!byKey.has(key))byKey.set(key,[]);byKey.get(key).push(note);}
+    for(const key of order){const group=byKey.get(key);if(!group?.length)continue;const [unit,thinker]=ethicsParts(key);if(!thinkers.has(thinker))thinkers.set(thinker,[]);thinkers.get(thinker).push({unit,group});}
+    const originalLabel=button.textContent,font=Math.max(8,Math.min(10,Number(document.getElementById('wordFontSize').value)||9)),cfg={font,correctFont:Math.max(7,font-1),arrowFont:Math.max(6.5,font-2)},landscape=document.getElementById('wordPageDirection').value==='landscape';
+    wordBusy=true;button.disabled=true;option.disabled=true;
+    try{
+      button.textContent='Word 준비 중…';const D=await loadWordLibrary();
+      if(document.fonts){await document.fonts.load(`${font*96/72}px "Malgun Gothic"`);await document.fonts.ready;}
+      const context=document.createElement('canvas').getContext('2d');if(!context)throw new Error('문장 너비 계산 실패');
+      const measure=(text,p,bold=false)=>{context.font=`${bold?'bold ':''}${p*96/72}px "Malgun Gothic", "맑은 고딕", sans-serif`;return Math.ceil(context.measureText(text).width*15*1.02);};
+      const {Document,Packer,Paragraph,TextRun,BorderStyle,LineRuleType}=D,pageWidth=landscape?16838:11906,pageHeight=landscape?11906:16838,width=pageWidth-1360;
+      const children=[new Paragraph({spacing:{before:0,after:70,line:340,lineRule:LineRuleType.EXACT},children:[new TextRun({text:'생활과 윤리 오답 선지 교정 노트',size:28,bold:true,color:'0F172A'})]}),new Paragraph({spacing:{before:0,after:80,line:180,lineRule:LineRuleType.EXACT},children:[new TextRun({text:`생성일자: ${new Date().toLocaleDateString('ko-KR')} | 총 선지 수: ${snapshot.length}개 | 학자 중심 정렬`,size:15,color:'64748B'})]})];
+      let count=0,thinkerNumber=0;
+      for(const [thinker,groups] of thinkers){
+        const total=groups.reduce((sum,item)=>sum+item.group.length,0);
+        children.push(new Paragraph({heading:D.HeadingLevel.HEADING_1,keepNext:true,spacing:{before:180,after:90},children:[new TextRun({text:`${++thinkerNumber}. ${thinker} · ${total}개 선지`,size:26,bold:true,color:'0F172A'})]}));
+        for(const {unit,group} of groups){
+          children.push(new Paragraph({heading:D.HeadingLevel.HEADING_2,keepNext:true,spacing:{before:100,after:60,line:250,lineRule:LineRuleType.EXACT},border:{bottom:{style:BorderStyle.SINGLE,size:4,color:'C7D2FE'}},children:[new TextRun({text:`${ethicsTitle(unit)}  ·  ${group.length}개 항목`,size:21,bold:true,color:'4F46E5'})]}));
+          for(let i=0;i<group.length;i++){button.textContent=`Word 생성 ${++count}/${snapshot.length}…`;children.push(wordCard(group[i],i,width,measure,cfg,D));children.push(wordSpacer(D,65));if(count%10===0)await new Promise(resolve=>setTimeout(resolve,0));}
+        }
+      }
+      const doc=new Document({creator:'생활과 윤리 교정 노트',title:'생활과 윤리 학자별 교정 노트',styles:{default:{document:{run:{font:'Malgun Gothic',size:font*2},paragraph:{spacing:{before:0,after:0,line:Math.ceil((font+1.6)*20),lineRule:LineRuleType.EXACT}}}}},sections:[{properties:{page:{size:{width:pageWidth,height:pageHeight},margin:{top:680,bottom:680,left:680,right:680}}},children}]});
+      downloadBlob(await Packer.toBlob(doc),`생활과윤리_오답노트_학자별_${new Date().toISOString().slice(0,10)}.docx`);
+    }catch(e){console.error(e);alert('Word 내보내기 실패\n'+e.message);}finally{wordBusy=false;button.disabled=false;option.disabled=false;button.textContent=originalLabel;}
+  };
+});
