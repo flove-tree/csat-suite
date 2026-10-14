@@ -142,3 +142,81 @@ test('typed ethics proposition and memo remain in a local draft without saving n
     contentType: 'application/json'
   });
 });
+
+test('local ethics draft can be restored after a page reload without saving notes', async ({ page, context }, testInfo) => {
+  const { pageErrors, mockedApiCalls, blockedExternalRequests, mockCloud } = await openReviewPage(page, context);
+  const input = {
+    unit: '생명 윤리',
+    thinker: '칸트',
+    original: '새로고침 복원 검증용 선지.',
+    memo: '새로고침 복원 검증용 메모.'
+  };
+
+  await page.locator('#unitSelect').selectOption(input.unit);
+  await page.locator('#thinker').fill(input.thinker);
+  await page.locator('#originalText').fill(input.original);
+  await page.locator('#memo').fill(input.memo);
+  const sourceDraftKey = await page.evaluate(() => window.FloveEthicsInput.guard.draftKey);
+  await expect.poll(() => page.evaluate(key => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const state = JSON.parse(raw).state;
+    return { unit: state.unit, thinker: state.thinker, original: state.original, memo: state.memo };
+  }, sourceDraftKey), { timeout: 5000 }).toEqual(input);
+
+  const reloadDialogTypes = [];
+  const onReloadDialog = async dialog => {
+    reloadDialogTypes.push(dialog.type());
+    if (dialog.type() === 'beforeunload') await dialog.accept();
+    else await dialog.dismiss();
+  };
+  page.on('dialog', onReloadDialog);
+  try {
+    await page.reload({ waitUntil: 'load' });
+  } finally {
+    page.off('dialog', onReloadDialog);
+  }
+  expect(reloadDialogTypes.every(type => type === 'beforeunload')).toBe(true);
+  await expect.poll(() => page.evaluate(() => !!window.FloveEthicsInput?.guard), { timeout: 10000 }).toBe(true);
+  expect(await page.evaluate(() => window.FloveEthicsInput.guard.draftKey)).not.toBe(sourceDraftKey);
+  await expect(page.locator('#thinker')).toHaveValue('');
+  await expect(page.locator('#originalText')).toHaveValue('');
+  await expect(page.locator('#memo')).toHaveValue('');
+
+  const panel = page.locator('#ethics-draft-panel');
+  await expect(panel).toBeVisible();
+  await panel.getByLabel('복원할 생윤 입력 초안').selectOption(sourceDraftKey);
+  const restoreDialogTypes = [];
+  const onRestoreDialog = async dialog => {
+    restoreDialogTypes.push(dialog.type());
+    if (dialog.type() === 'confirm') await dialog.accept();
+    else await dialog.dismiss();
+  };
+  page.on('dialog', onRestoreDialog);
+  try {
+    await panel.getByRole('button', { name: '초안 복원', exact: true }).click();
+  } finally {
+    page.off('dialog', onRestoreDialog);
+  }
+  expect(restoreDialogTypes).toEqual(['confirm']);
+  await expect(page.locator('#unitSelect')).toHaveValue(input.unit);
+  await expect(page.locator('#thinker')).toHaveValue(input.thinker);
+  await expect(page.locator('#originalText')).toHaveValue(input.original);
+  await expect(page.locator('#memo')).toHaveValue(input.memo);
+  expect(await page.evaluate(() => window.FloveEthicsInput.guard.hasUnsavedChanges())).toBe(true);
+
+  const confirmedStorage = await page.evaluate(() => ({
+    notes: localStorage.getItem('liv_ethic_notes_v11'),
+    layout: localStorage.getItem('liv_ethic_layout_v11')
+  }));
+  expect(confirmedStorage).toEqual({ notes: null, layout: null });
+  expect(await page.evaluate(key => localStorage.getItem(key) !== null, sourceDraftKey)).toBe(true);
+  expect(Object.keys(mockCloud).some(key => key.startsWith('liv_ethic_') || key.startsWith('__flove_input_draft_v1:'))).toBe(false);
+  expect(pageErrors).toEqual([]);
+
+  await page.screenshot({ path: testInfo.outputPath('ethics-restored-draft.png'), fullPage: true });
+  await testInfo.attach('restored-draft-check', {
+    body: Buffer.from(JSON.stringify({ input, confirmedStorage, reloadDialogTypes, restoreDialogTypes, pageErrors, mockedApiCalls, blockedExternalRequests }, null, 2)),
+    contentType: 'application/json'
+  });
+});
