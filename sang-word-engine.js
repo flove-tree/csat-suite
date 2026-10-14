@@ -50,9 +50,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       let count=0,thinkerNumber=0;
       for(const [thinker,groups] of thinkers){
         const total=groups.reduce((sum,item)=>sum+item.group.length,0);
-        children.push(new Paragraph({heading:D.HeadingLevel.HEADING_1,keepNext:true,spacing:{before:180,after:90},children:[new TextRun({text:`${++thinkerNumber}. ${thinker} · ${total}개 선지`,size:26,bold:true,color:'0F172A'})]}));
+        children.push(new Paragraph({heading:D.HeadingLevel.HEADING_1,keepNext:true,spacing:{before:180,after:90,line:300,lineRule:LineRuleType.AUTO},children:[new TextRun({text:`${++thinkerNumber}. ${thinker} · ${total}개 선지`,size:26,bold:true,color:'0F172A'})]}));
         for(const {unit,group} of groups){
-          children.push(new Paragraph({heading:D.HeadingLevel.HEADING_2,keepNext:true,spacing:{before:100,after:60,line:250,lineRule:LineRuleType.EXACT},border:{bottom:{style:BorderStyle.SINGLE,size:4,color:'C7D2FE'}},children:[new TextRun({text:`${ethicsTitle(unit)}  ·  ${group.length}개 항목`,size:21,bold:true,color:'4F46E5'})]}));
+          children.push(new Paragraph({heading:D.HeadingLevel.HEADING_2,keepNext:true,spacing:{before:100,after:60,line:300,lineRule:LineRuleType.AUTO},border:{bottom:{style:BorderStyle.SINGLE,size:4,color:'C7D2FE'}},children:[new TextRun({text:`${ethicsTitle(unit)}  ·  ${group.length}개 항목`,size:21,bold:true,color:'4F46E5'})]}));
           for(let i=0;i<group.length;i++){button.textContent=`Word 생성 ${++count}/${snapshot.length}…`;children.push(wordCard(group[i],i,width,measure,cfg,D));children.push(wordSpacer(D,65));if(count%10===0)await new Promise(resolve=>setTimeout(resolve,0));}
         }
       }
