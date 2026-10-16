@@ -39,7 +39,7 @@ function mount(){
 if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),10000);}
 })();
 
-/* Optional entry for concept/statistics; persistence stays with FloveSync. */
+/* Optional entry for all Samun tabs; persistence stays with FloveSync. */
 (() => {
   'use strict';
   const cfg = window.FLOVE_SYNC_CONFIG || {};
@@ -48,7 +48,7 @@ if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.discon
     const get = id => document.getElementById(id);
     const form = get('noteForm');
     if (!form || form.dataset.samunOptional) return;
-    const optional = () => currentSubject === 'concept' || currentSubject === 'statistics';
+    const optional = () => ['absolute', 'concept', 'statistics'].includes(currentSubject);
     const ids = ['unitSelect', 'yearInput', 'monthDetail', 'passageTitle', 'noteContent'];
     const required = new Map(ids.map(id => [id, get(id).required]));
     const examRequired = get('examCategory').required;
@@ -72,9 +72,11 @@ if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.discon
       }
       get('yearInput').placeholder = enabled ? '예: 25 또는 26 (미입력 가능)'
         : isQuickMode ? '자동 입력 (생략 가능)' : '예: 25 또는 26';
-      if (enabled) get('passageTitle').placeholder = currentSubject === 'concept'
-        ? '예: 실증적 연구 vs 해석적 연구 (미입력 가능)'
-        : '예: 부모/자녀 계층 이동 도표 분모 확인 (미입력 가능)';
+      if (enabled) get('passageTitle').placeholder = currentSubject === 'absolute'
+        ? '예: [시험 태도] 모르는 선지 함정 유의 (미입력 가능)'
+        : currentSubject === 'concept'
+          ? '예: 실증적 연구 vs 해석적 연구 (미입력 가능)'
+          : '예: 부모/자녀 계층 이동 도표 분모 확인 (미입력 가능)';
     }
     const originalUnits = window.updateUnitOptions;
     window.updateUnitOptions = function(...args) {
@@ -113,7 +115,7 @@ if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.discon
         category: get('examCategory').value,
         year: rawYear ? parseYear(rawYear) : '',
         monthDetail: parseMonth(get('monthDetail').value),
-        unit: get('unitSelect').value,
+        unit: currentSubject === 'absolute' ? '' : get('unitSelect').value,
         passageTitle: get('passageTitle').value.trim(),
         content: get('noteContent').value
       };
