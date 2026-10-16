@@ -38,3 +38,122 @@ function mount(){
 }
 if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),10000);}
 })();
+
+/* Optional entry for concept/statistics; persistence stays with FloveSync. */
+(() => {
+  'use strict';
+  const cfg = window.FLOVE_SYNC_CONFIG || {};
+  if (cfg.page !== 'samun' || cfg.readOnly) return;
+  function init() {
+    const get = id => document.getElementById(id);
+    const form = get('noteForm');
+    if (!form || form.dataset.samunOptional) return;
+    const optional = () => currentSubject === 'concept' || currentSubject === 'statistics';
+    const ids = ['unitSelect', 'yearInput', 'monthDetail', 'passageTitle', 'noteContent'];
+    const required = new Map(ids.map(id => [id, get(id).required]));
+    const examRequired = get('examCategory').required;
+    function apply() {
+      const enabled = optional();
+      get('examCategory').required = enabled || examRequired;
+      for (const id of ids) {
+        get(id).required = !enabled && required.get(id) &&
+          !(isQuickMode && (id === 'yearInput' || id === 'passageTitle'));
+        const label = form.querySelector('label[for="' + id + '"]');
+        if (!label) continue;
+        const marker = label.querySelector('[data-samun-optional]');
+        if (marker) marker.remove();
+        if (enabled && id !== 'monthDetail') {
+          const span = document.createElement('span');
+          span.className = 'opt-text';
+          span.dataset.samunOptional = 'true';
+          span.textContent = ' (선택)';
+          label.appendChild(span);
+        }
+      }
+      get('yearInput').placeholder = enabled ? '예: 25 또는 26 (미입력 가능)'
+        : isQuickMode ? '자동 입력 (생략 가능)' : '예: 25 또는 26';
+      if (enabled) get('passageTitle').placeholder = currentSubject === 'concept'
+        ? '예: 실증적 연구 vs 해석적 연구 (미입력 가능)'
+        : '예: 부모/자녀 계층 이동 도표 분모 확인 (미입력 가능)';
+    }
+    const originalUnits = window.updateUnitOptions;
+    window.updateUnitOptions = function(...args) {
+      const result = originalUnits.apply(this, args);
+      if (optional()) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '선택 안 함';
+        option.defaultSelected = true;
+        get('unitSelect').prepend(option);
+        get('unitSelect').value = '';
+      }
+      return result;
+    };
+    for (const name of ['switchSubject', 'toggleQuickMode', 'cancelEdit']) {
+      const original = window[name];
+      window[name] = function(...args) {
+        const result = original.apply(this, args);
+        apply();
+        return result;
+      };
+    }
+    get('yearInput').addEventListener('blur', function() {
+      if (optional() && !this.value.trim()) this.value = '';
+    }, true);
+    form.addEventListener('submit', function(event) {
+      if (!optional()) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!get('examCategory').value) {
+        get('examCategory').reportValidity();
+        return;
+      }
+      const rawYear = get('yearInput').value.trim();
+      const values = {
+        category: get('examCategory').value,
+        year: rawYear ? parseYear(rawYear) : '',
+        monthDetail: parseMonth(get('monthDetail').value),
+        unit: get('unitSelect').value,
+        passageTitle: get('passageTitle').value.trim(),
+        content: get('noteContent').value
+      };
+      const previous = notes;
+      const editing = editingId !== null;
+      if (editing) {
+        notes = notes.map(note => note.id === editingId
+          ? {...note, ...values, updatedAt: new Date().toLocaleDateString()}
+          : note);
+      } else {
+        notes = [{
+          id: Date.now(), subject: currentSubject, ...values,
+          createdAt: new Date().toLocaleDateString('ko-KR', {
+            year: 'numeric', month: '2-digit', day: '2-digit'
+          })
+        }, ...notes];
+      }
+      try {
+        saveAndRender();
+      } catch (error) {
+        notes = previous;
+        throw error;
+      }
+      if (editing) cancelEdit();
+      if (isQuickMode) {
+        get('noteContent').value = '';
+        get('passageTitle').value = '';
+        get('noteContent').focus();
+      } else {
+        form.reset();
+      }
+      apply();
+    }, true);
+    form.dataset.samunOptional = 'true';
+    if (optional()) updateUnitOptions();
+    apply();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, {once: true});
+  } else {
+    init();
+  }
+})();
