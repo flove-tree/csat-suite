@@ -52,7 +52,7 @@ for page in out.rglob("*.html"):
         if not (out / "samun-note-sorting.js").is_file():
             raise ValueError("Missing Samun sorting module")
         if 'id="samun-note-sorting-loader"' not in text:
-            text, count = re.subn(r"</body\s*>", lambda m: '<script id="samun-note-sorting-loader" src="samun-note-sorting.js"></script>\n' + m.group(0), text, count=1, flags=re.I)
+            text, count = re.subn(r"</body\s*>(?=\s*</html\s*>\s*\Z)", lambda m: '<script id="samun-note-sorting-loader" src="samun-note-sorting.js"></script>\n' + m.group(0), text, count=1, flags=re.I)
             if count != 1:
                 raise ValueError("Samun sorting loader was not added")
     text = asset_pattern.sub(version_asset, text)
