@@ -48,6 +48,13 @@ def version_asset(match):
 
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
+    if page == out / "samun.html":
+        if not (out / "samun-note-sorting.js").is_file():
+            raise ValueError("Missing Samun sorting module")
+        if 'id="samun-note-sorting-loader"' not in text:
+            text, count = re.subn(r"</body\s*>", lambda m: '<script id="samun-note-sorting-loader" src="samun-note-sorting.js"></script>\n' + m.group(0), text, count=1, flags=re.I)
+            if count != 1:
+                raise ValueError("Samun sorting loader was not added")
     text = asset_pattern.sub(version_asset, text)
     if page == out / "index.html":
         marker = ('<p id="flove-site-update" title="현재 HTML 배포본의 생성 시각입니다. 배포 완료 시각이나 새로고침 시각이 아닙니다." '
