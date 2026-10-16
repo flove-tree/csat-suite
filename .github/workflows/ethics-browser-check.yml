@@ -1,0 +1,68 @@
+name: Ethics browser load check
+
+'on':
+  push:
+    branches: [fix/input-protection-bootstrap]
+    paths:
+      - '.github/workflows/ethics-browser-check.yml'
+      - 'tests/browser/**'
+      - 'sang.html'
+      - 'sang-*.js'
+      - 'input-protection.js'
+      - 'sync-v2.js'
+      - 'daily-welcome.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ethics-browser-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ethics-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CI: 'true'
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install pinned test runner in the temporary CI workspace
+        run: |
+          npm init -y
+          npm install --no-save --package-lock=false @playwright/test@1.61.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Start local review server
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 > /tmp/csat-suite-preview.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/sang.html > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/csat-suite-preview.log
+          exit 1
+      - name: Run only the ethics page load test
+        run: npx playwright test tests/browser/ethics-load.spec.js --browser=chromium --workers=1 --reporter=line,html
+      - name: Keep review results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethics-browser-load-results
+          path: |
+            playwright-report/
+            test-results/
+            /tmp/csat-suite-preview.log
+          retention-days: 3
+          if-no-files-found: warn

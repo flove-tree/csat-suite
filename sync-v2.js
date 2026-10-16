@@ -8,7 +8,7 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const planKey=k=>/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9_-]+$/.test(k)||/^rolled-id-\d+-\d+$/.test(k)||/^flove-rolled-\d{4}-\d{2}-\d{2}$/.test(k)||['flove-active-preset','flove-custom-hex','flove-last-save'].includes(k);
 const own=k=>cfg.keys.includes(k)||(cfg.plan&&planKey(k))||(cfg.readOnly&&cfg.hubStatus&&cfg.inspectPlan&&planKey(k));
 const meta='__flove_sync_base_v2_'+cfg.page;
-let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks;
+let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks,inputGeneration=0;
 function decide(known,b,l,r){if(l===r)return 'equal';if(!known)return l===null&&r!==null?'pull':'conflict';if(l===b)return 'pull';if(r===b)return 'push';return 'conflict';}
 function validate(k,v){
  if(v===null)return;if(typeof v!=='string')throw Error('서버 값 형식 오류: '+k);
@@ -18,7 +18,9 @@ function validate(k,v){
  else if(/^\d{4}-|^rolled-id-/.test(k)){if(!['true','false'].includes(v))throw Error('체크 데이터 오류');}
 }
 function local(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(own(k))d[k]=localStorage.getItem(k);}return d;}
-function idle(){return !dirty&&(!adapter.editing||!adapter.editing());}
+function inputPending(){try{const guard=cfg.page==='sang'&&window.FloveEthicsInput&&window.FloveEthicsInput.guard;return guard?guard.hasUnsavedChanges():dirty;}catch(_){return true;}}
+function childPending(){if(!cfg.readOnly||!cfg.hubStatus)return false;try{const frame=document.getElementById('tool-iframe'),child=frame&&frame.contentWindow;if(!child||child===window)return false;return !!(child.FloveSync&&typeof child.FloveSync.hasPendingInput==='function'&&child.FloveSync.hasPendingInput());}catch(_){return true;}}
+function idle(){return !inputPending()&&!childPending()&&(!adapter.editing||!adapter.editing());}
 function status(s,bad=false){if(hubLinks){hubLinks.hidden=true;hubLinks.replaceChildren();}if(label){label.textContent=s;label.style.color=bad?'#b91c1c':'#166534';}}
 const hubGroups=[
  {name:'국어',file:'korean.html',keys:['saegibun_notes_v3']},
@@ -62,8 +64,8 @@ function restore(old){for(const k of Object.keys(old)){try{if(old[k]===null)loca
 function apply(keys){if(!keys.length)return;backup('before-cloud-apply');const old={};keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{for(const k of keys){const v=val(cloud,k);validate(k,v);if(v===null&&/notes_v\d+$|exam_logs_v\d+$/.test(k))localStorage.setItem(k,'[]');else if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}refresh(keys);}catch(e){restore(old);try{refresh(keys);}catch(_){stopped=true;}throw e;}keys.forEach(k=>{base[k]=val(cloud,k);});remember();}
 async function cycle(){
  if(busy||stopped||document.hidden)return;if(!cfg.keys.length&&!cfg.plan){status('타이머: 클라우드 저장 대상 없음');return;}busy=true;
- try{const p=await request();cloud=p.data;const d=local(),keys=[...new Set([...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own)])],pull=[],ops=[],bad=[];
- for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle())base[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
+ try{const p=await request();cloud=p.data;const d=local(),keys=[...new Set([...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own),...(cfg.page==='sang'?cfg.keys:[])])],pull=[],ops=[],bad=[];
+ for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle()||(cfg.page==='sang'&&val(d,k)===null&&val(cloud,k)===null))base[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
  if(cfg.readOnly){
   if(cfg.hubStatus){const action=hubActions(pull,ops,bad,idle());if(action.applyKeys.length)apply(action.applyKeys);remember();show([]);renderHub(action.pending);return;}
   if(pull.length&&idle())apply(pull);remember();show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;
@@ -80,17 +82,17 @@ async function choose(mode){
  }catch(e){status('충돌 처리 실패 — 원본 유지: '+e.message,true);}finally{busy=false;}setTimeout(cycle,100);
 }
 function storeBatch(values){const old={};Object.keys(values).forEach(k=>{old[k]=localStorage.getItem(k);});try{Object.entries(values).forEach(([k,v])=>localStorage.setItem(k,v));}catch(e){restore(old);try{refresh(Object.keys(old));}catch(_){}status('기기 저장 실패 — 입력 유지',true);alert('기기 저장 실패: '+e.message);throw e;}}
-function saved(){dirty=false;setTimeout(cycle,100);}
+function saved(){dirty=false;inputGeneration++;setTimeout(cycle,100);}
 function resetPlan(){if(!confirm('계획표 기록만 초기화할까요? 다른 과목은 삭제하지 않습니다.'))return;try{backup('before-plan-reset');const old={},keys=Object.keys(local()).filter(planKey);keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{keys.forEach(k=>localStorage.removeItem(k));}catch(e){restore(old);throw e;}refresh(keys);saved();}catch(e){status('초기화 실패: '+e.message,true);}}
 function boot(){
  const box=document.createElement('section');box.id='flove-sync-v2-panel';Object.assign(box.style,{position:'relative',zIndex:'10000',margin:'12px',padding:'12px',border:'1px solid #cbd5e1',borderRadius:'12px',background:'#fff',color:'#0f172a',fontSize:'13px'});label=document.createElement('div');box.appendChild(label);status('서버 연결 확인 중…');
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.style,{margin:'6px',padding:'6px',border:'1px solid #cbd5e1',borderRadius:'6px',color:'#0f172a',background:'#f8fafc'});b.addEventListener('click',fn);return b;};
  box.append(button('다시 조회',cycle),button('양쪽 원본 내려받기',()=>{try{download();}catch(e){alert(e.message);}}));details=document.createElement('div');details.hidden=true;keysEl=document.createElement('pre');keysEl.style.whiteSpace='pre-wrap';details.append(keysEl,button('서버 기록 사용',()=>choose('cloud')),button('이 기기 기록 사용',()=>choose('local')));box.appendChild(details);if(cfg.readOnly&&cfg.hubStatus){hubLinks=document.createElement('nav');hubLinks.setAttribute('aria-label','확인이 필요한 학습 화면');hubLinks.hidden=true;box.appendChild(hubLinks);}document.body.prepend(box);
  try{const raw=sessionStorage.getItem(meta);if(raw!==null){base=JSON.parse(raw);if(!obj(base))throw Error('기준 데이터 손상');}}catch(e){stopped=true;status('기준 데이터 오류 — 자동 저장 중단',true);return;}
- const track=e=>{if(cfg.plan||!e.target.closest||!e.target.closest('form,#tab-record')||/search|filter|sort/i.test(e.target.id||''))return;dirty=true;};document.addEventListener('input',track,true);document.addEventListener('change',track,true);document.addEventListener('reset',()=>setTimeout(()=>{dirty=false;},0),true);
+ const track=e=>{if(cfg.plan||!e.target.closest||!e.target.closest('form,#tab-record')||/search|filter|sort/i.test(e.target.id||''))return;dirty=true;inputGeneration++;};document.addEventListener('input',track,true);document.addEventListener('change',track,true);document.addEventListener('reset',()=>{const generation=inputGeneration;setTimeout(()=>{if(inputGeneration===generation)dirty=false;},0);},true);
  window.addEventListener('storage',e=>{if(e.key&&own(e.key)&&idle()){try{refresh([e.key]);}catch(err){status('다른 탭 갱신 실패: '+err.message,true);}}});document.addEventListener('visibilitychange',()=>{if(!document.hidden)cycle();});window.addEventListener('online',cycle);setInterval(cycle,10000);setTimeout(cycle,0);
 }
-window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:cycle,_test:{decide,validate}};
+window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:cycle,hasPendingInput:()=>!idle(),_test:{decide,validate}};
 window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i.test(String(e.message))){stopped=true;status('앱 데이터 오류 — 자동 동기화 중단: '+e.message,true);}});document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0));
 })();
 
