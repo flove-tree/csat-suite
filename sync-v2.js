@@ -57,6 +57,8 @@ function mountRecovery(box){
  const kib=n=>(n/1024).toFixed(1)+' KiB';
  recoveryRender=()=>{if(!view.open)return;try{const s=requireRecovery().stats();usage.textContent='기기 저장소  '+kib(s.estimatedLocalStorageBytes)+'\n복구본  '+kib(s.estimatedRecoveryBytes);count.textContent='일반 '+s.automaticCount+' · 기존 '+s.legacyAutomaticCount+' · 보호 '+s.protectedCount+' · 정리 대기 '+s.legacyCleanupCandidateCount;warning.textContent=[s.warning,recoveryNotice].filter(Boolean).join('\n');warning.hidden=!warning.textContent;}catch(e){usage.textContent='사용량 확인 실패 — 기존 기록 유지';count.textContent='';warning.textContent=e.message;warning.hidden=false;}};
  view.addEventListener('toggle',recoveryRender);check.addEventListener('click',recoveryRender);
+ const fitPanel=()=>{if(!view.open)return;panel.style.transform='';const r=panel.getBoundingClientRect(),width=document.documentElement.clientWidth;const shift=r.left<12?12-r.left:r.right>width-12?width-12-r.right:0;panel.style.transform=shift?'translateX('+shift+'px)':'';};
+ view.addEventListener('toggle',fitPanel);window.addEventListener('resize',fitPanel);
  close.addEventListener('click',()=>{view.open=false;summary.focus();});
  view.addEventListener('keydown',e=>{if(cfg.page==='timer')e.stopPropagation();if(e.key==='Escape'&&view.open){view.open=false;summary.focus();e.stopPropagation();}});
  document.addEventListener('pointerdown',e=>{if(view.open&&!view.contains(e.target))view.open=false;});
