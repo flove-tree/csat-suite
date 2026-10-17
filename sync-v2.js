@@ -31,6 +31,7 @@ function mountRecovery(box){
  const view=document.createElement('details');view.id='flove-recovery-storage';
  Object.assign(view.style,{margin:'8px 12px',padding:'8px 12px',border:'1px solid #cbd5e1',borderRadius:'10px',background:'#fff',color:'#334155',fontSize:'12px'});
  const summary=document.createElement('summary');summary.textContent='기기 복구본 관리';summary.style.cursor='pointer';
+ view.addEventListener('keydown',e=>{if(cfg.page==='timer')e.stopPropagation();});
  const text=document.createElement('p');text.style.whiteSpace='pre-line';text.setAttribute('role','status');
  const check=document.createElement('button'),exportAll=document.createElement('button');check.type=exportAll.type='button';check.textContent='사용량 다시 확인';exportAll.textContent='보관된 복구본 전체 내려받기';
  for(const b of [check,exportAll])Object.assign(b.style,{margin:'4px',padding:'6px 8px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#f8fafc',color:'#334155'});
