@@ -8,6 +8,41 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const planKey=k=>/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9_-]+$/.test(k)||/^rolled-id-\d+-\d+$/.test(k)||/^flove-rolled-\d{4}-\d{2}-\d{2}$/.test(k)||['flove-active-preset','flove-custom-hex','flove-last-save'].includes(k);
 const own=k=>cfg.keys.includes(k)||(cfg.plan&&planKey(k))||(cfg.readOnly&&cfg.hubStatus&&cfg.inspectPlan&&planKey(k));
 const meta='__flove_sync_base_v2_'+cfg.page;
+const recoverySource=new URL(document.currentScript.src);
+let recoveryManagerInstance,recoveryReady=false,recoveryRender=()=>{},recoveryNotice='';
+function requireRecovery(){if(!recoveryReady||!recoveryManagerInstance)throw Error('복구본 관리 준비 전 — 기록 교체 중단');return recoveryManagerInstance;}
+function loadRecovery(){
+ return new Promise((resolve,reject)=>{
+  const script=document.createElement('script'),url=new URL('recovery-backups.js',recoverySource);
+  url.searchParams.set('v','1.0.0');const build=recoverySource.searchParams.get('flove_build');if(build)url.searchParams.set('flove_build',build);
+  const timer=setTimeout(()=>finish(Error('복구본 관리 모듈 로딩 시간 초과')),15000);let settled=false;
+  function finish(error){if(settled)return;settled=true;clearTimeout(timer);script.onload=script.onerror=null;if(error){script.remove();reject(error);}else resolve();}
+  script.src=url.href;script.onload=()=>{const api=globalThis.FloveRecovery;if(!api||api.version!==1||typeof api.create!=='function'){finish(Error('복구본 관리 모듈 형식 오류'));return;}try{recoveryManagerInstance=api.create(localStorage,validate);recoveryReady=true;finish();}catch(e){finish(e);}};
+  script.onerror=()=>finish(Error('복구본 관리 모듈을 불러오지 못했습니다'));document.head.appendChild(script);
+ });
+}
+function maintainRecovery(){
+ if(!idle()||(!cfg.keys.length&&!cfg.plan))return;
+ try{if(requireRecovery().needsLegacyCleanup())backup('recovery-maintenance');}
+ catch(e){recoveryNotice='자동 정리 보류: '+e.message;console.warn('[Flove Recovery]',e);}
+ finally{recoveryRender();}
+}
+function mountRecovery(box){
+ const view=document.createElement('details');view.id='flove-recovery-storage';
+ Object.assign(view.style,{margin:'8px 12px',padding:'8px 12px',border:'1px solid #cbd5e1',borderRadius:'10px',background:'#fff',color:'#334155',fontSize:'12px'});
+ const summary=document.createElement('summary');summary.textContent='기기 복구본 관리';summary.style.cursor='pointer';
+ const text=document.createElement('p');text.style.whiteSpace='pre-line';text.setAttribute('role','status');
+ const check=document.createElement('button'),exportAll=document.createElement('button');check.type=exportAll.type='button';check.textContent='사용량 다시 확인';exportAll.textContent='보관된 복구본 전체 내려받기';
+ for(const b of [check,exportAll])Object.assign(b.style,{margin:'4px',padding:'6px 8px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#f8fafc',color:'#334155'});
+ const kib=n=>(n/1024).toFixed(1)+' KiB';
+ recoveryRender=()=>{if(!view.open)return;try{const s=requireRecovery().stats();text.textContent='이 사이트 localStorage 사용 추정: '+kib(s.estimatedLocalStorageBytes)+'\n복구본 사용 추정: '+kib(s.estimatedRecoveryBytes)+'\n새 일반 '+s.automaticCount+'개 · 기존 일반 '+s.legacyAutomaticCount+'개 · 보호·분류 불명 '+s.protectedCount+'개\n기존 정리 대기 '+s.legacyCleanupCandidateCount+'개. 7일 이상 지난 일반 복구본만 정리하며 화면별 최신 기존 복구본 2개는 유지합니다.\n새 일반 복구본 보관 목표: 화면별 8개 · 합계 1 MiB. 화면별 최신 1개와 최근 1분 복구본은 우선 보호합니다.\n충돌·초기화 전·손상·분류 불명 복구본은 자동 삭제하지 않습니다. 전체 용량의 강제 상한은 아닙니다.\n문자열 길이 기준 추정치입니다. 남은 localStorage 용량은 정확히 알 수 없습니다.'+(s.warning?'\n안내: '+s.warning:'')+(recoveryNotice?'\n'+recoveryNotice:'');}catch(e){text.textContent='사용량 확인 실패 — 기존 기록 유지: '+e.message;}};
+ check.addEventListener('click',recoveryRender);view.addEventListener('toggle',recoveryRender);
+ exportAll.addEventListener('click',()=>{let url;try{url=URL.createObjectURL(new Blob([JSON.stringify(requireRecovery().archive(),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Flove_보관복구본_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){text.textContent='복구본 내보내기 실패: '+e.message;}finally{if(url)setTimeout(()=>URL.revokeObjectURL(url),1000);}});
+ window.addEventListener('storage',e=>{if(e.key===null||e.key.startsWith('__flove_sync_recovery_'))recoveryRender();});
+ const style=document.createElement('style');style.textContent='@media print{#flove-recovery-storage{display:none!important}}';document.head.appendChild(style);
+ view.append(summary,text,check,exportAll);box.insertAdjacentElement('afterend',view);
+}
+
 let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks;
 function decide(known,b,l,r){if(l===r)return 'equal';if(!known)return l===null&&r!==null?'pull':'conflict';if(l===b)return 'pull';if(r===b)return 'push';return 'conflict';}
 function validate(k,v){
@@ -53,7 +88,7 @@ function renderHub(keys){
 }
 function remember(){sessionStorage.setItem(meta,JSON.stringify(base));}
 function snapshot(reason){return {format:'flove-sync-recovery-v2',createdAt:new Date().toISOString(),reason,page:cfg.page,local:local(),cloud:Object.fromEntries(Object.entries(cloud).filter(([k])=>own(k)))};}
-function backup(reason){const r=snapshot(reason);localStorage.setItem('__flove_sync_recovery_'+Date.now()+'_'+Math.random().toString(36).slice(2),JSON.stringify(r));return r;}
+function backup(reason){const r=snapshot(reason);try{requireRecovery().save(r);recoveryNotice='';return r;}finally{recoveryRender();}}
 function download(){const u=URL.createObjectURL(new Blob([JSON.stringify(snapshot('download'),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='Flove_동기화복구_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
 function show(keys){conflicts=keys;if(!details)return;details.hidden=!keys.length;keysEl.textContent=keys.join('\n');if(keys.length)status('충돌 '+keys.length+'개 — 자동 덮어쓰기 중단',true);}
 async function request(body){const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);try{const opt={cache:'no-store',signal:c.signal};if(body){opt.method='POST';opt.headers={'Content-Type':'text/plain;charset=UTF-8'};opt.body=JSON.stringify(body);}const r=await fetch(cfg.url||endpoint,opt);if(!r.ok)throw Error('HTTP '+r.status);const p=await r.json();if(!obj(p)||p.protocol!==2||!['success','conflict'].includes(p.result)||!obj(p.data))throw Error(p.message||'서버 V2 응답 오류');for(const[k,v]of Object.entries(p.data))if(own(k))validate(k,v);return p;}finally{clearTimeout(timer);}}
@@ -61,7 +96,7 @@ function refresh(keys){if(adapter.refresh)adapter.refresh(keys);}
 function restore(old){for(const k of Object.keys(old)){try{if(old[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,old[k]);}catch(_){stopped=true;}}}
 function apply(keys){if(!keys.length)return;backup('before-cloud-apply');const old={};keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{for(const k of keys){const v=val(cloud,k);validate(k,v);if(v===null&&/notes_v\d+$|exam_logs_v\d+$/.test(k))localStorage.setItem(k,'[]');else if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}refresh(keys);}catch(e){restore(old);try{refresh(keys);}catch(_){stopped=true;}throw e;}keys.forEach(k=>{base[k]=val(cloud,k);});remember();}
 async function cycle(){
- if(busy||stopped||document.hidden)return;if(!cfg.keys.length&&!cfg.plan){status('타이머: 클라우드 저장 대상 없음');return;}busy=true;
+ if(busy||stopped||!recoveryReady||document.hidden)return;if(!cfg.keys.length&&!cfg.plan){status('타이머: 클라우드 저장 대상 없음');return;}busy=true;
  try{const p=await request();cloud=p.data;const d=local(),keys=[...new Set([...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own)])],pull=[],ops=[],bad=[];
  for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle())base[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
  if(cfg.readOnly){
@@ -82,12 +117,15 @@ async function choose(mode){
 function storeBatch(values){const old={};Object.keys(values).forEach(k=>{old[k]=localStorage.getItem(k);});try{Object.entries(values).forEach(([k,v])=>localStorage.setItem(k,v));}catch(e){restore(old);try{refresh(Object.keys(old));}catch(_){}status('기기 저장 실패 — 입력 유지',true);alert('기기 저장 실패: '+e.message);throw e;}}
 function saved(){dirty=false;setTimeout(cycle,100);}
 function resetPlan(){if(!confirm('계획표 기록만 초기화할까요? 다른 과목은 삭제하지 않습니다.'))return;try{backup('before-plan-reset');const old={},keys=Object.keys(local()).filter(planKey);keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{keys.forEach(k=>localStorage.removeItem(k));}catch(e){restore(old);throw e;}refresh(keys);saved();}catch(e){status('초기화 실패: '+e.message,true);}}
-function boot(){
+async function boot(){
  const box=document.createElement('section');box.id='flove-sync-v2-panel';Object.assign(box.style,{position:'relative',zIndex:'10000',margin:'12px',padding:'12px',border:'1px solid #cbd5e1',borderRadius:'12px',background:'#fff',color:'#0f172a',fontSize:'13px'});label=document.createElement('div');box.appendChild(label);status('서버 연결 확인 중…');
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.style,{margin:'6px',padding:'6px',border:'1px solid #cbd5e1',borderRadius:'6px',color:'#0f172a',background:'#f8fafc'});b.addEventListener('click',fn);return b;};
  box.append(button('다시 조회',cycle),button('양쪽 원본 내려받기',()=>{try{download();}catch(e){alert(e.message);}}));details=document.createElement('div');details.hidden=true;keysEl=document.createElement('pre');keysEl.style.whiteSpace='pre-wrap';details.append(keysEl,button('서버 기록 사용',()=>choose('cloud')),button('이 기기 기록 사용',()=>choose('local')));box.appendChild(details);if(cfg.readOnly&&cfg.hubStatus){hubLinks=document.createElement('nav');hubLinks.setAttribute('aria-label','확인이 필요한 학습 화면');hubLinks.hidden=true;box.appendChild(hubLinks);}document.body.prepend(box);
  try{const raw=sessionStorage.getItem(meta);if(raw!==null){base=JSON.parse(raw);if(!obj(base))throw Error('기준 데이터 손상');}}catch(e){stopped=true;status('기준 데이터 오류 — 자동 저장 중단',true);return;}
  const track=e=>{if(cfg.plan||!e.target.closest||!e.target.closest('form,#tab-record')||/search|filter|sort/i.test(e.target.id||''))return;dirty=true;};document.addEventListener('input',track,true);document.addEventListener('change',track,true);document.addEventListener('reset',()=>setTimeout(()=>{dirty=false;},0),true);
+ try{status('복구본 관리 준비 중…');await loadRecovery();}catch(e){stopped=true;status('복구본 관리 준비 실패 — 자동 동기화 중단: '+e.message,true);return;}
+ try{mountRecovery(box);}catch(e){console.warn('[Flove Recovery UI]',e);}
+ maintainRecovery();status('서버 연결 확인 중…');
  window.addEventListener('storage',e=>{if(e.key&&own(e.key)&&idle()){try{refresh([e.key]);}catch(err){status('다른 탭 갱신 실패: '+err.message,true);}}});document.addEventListener('visibilitychange',()=>{if(!document.hidden)cycle();});window.addEventListener('online',cycle);setInterval(cycle,10000);setTimeout(cycle,0);
 }
 window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:cycle,_test:{decide,validate}};
