@@ -28,20 +28,43 @@ function maintainRecovery(){
  finally{recoveryRender();}
 }
 function mountRecovery(box){
+ const styleId='flove-recovery-footer-style';
+ if(!document.getElementById(styleId)){
+  const style=document.createElement('style');style.id=styleId;
+  style.textContent=`#flove-recovery-footer{box-sizing:border-box;width:100%;max-width:1200px;margin:8px auto 0;padding:0 16px;display:flex;justify-content:flex-end;flex-shrink:0;font:inherit}#flove-recovery-footer[data-timer]{max-width:520px}#flove-recovery-storage{position:relative;display:inline-block;max-width:100%;font:inherit;font-size:12px;text-align:left}#flove-recovery-storage>summary{display:inline-flex;align-items:center;gap:6px;min-height:30px;box-sizing:border-box;padding:4px 7px;border:1px solid transparent;border-radius:9px;list-style:none;color:inherit;opacity:.76;font:inherit;font-size:11.5px;cursor:pointer;user-select:none;transition:opacity .15s,background .15s}#flove-recovery-storage>summary::-webkit-details-marker{display:none}#flove-recovery-storage>summary svg{width:14px;height:14px;flex:none}#flove-recovery-storage>summary:hover,#flove-recovery-storage[open]>summary{opacity:1;background:rgba(148,163,184,.10)}#flove-recovery-storage>summary:focus-visible,#flove-recovery-storage button:focus-visible{outline:2px solid #818cf8;outline-offset:3px}#flove-recovery-storage[open]{z-index:10002}#flove-recovery-storage .fr-panel{position:absolute;right:0;bottom:calc(100% + 8px);box-sizing:border-box;width:320px;max-width:calc(100vw - 32px);max-height:min(65vh,420px);overflow:auto;padding:14px;border:1px solid var(--border-color,#e2e8f0);border-radius:15px;background:var(--card-bg,#fff);color:var(--text-main,#334155);box-shadow:0 12px 36px rgba(15,23,42,.12);font:inherit;font-size:12px;line-height:1.65}#flove-recovery-storage .fr-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}#flove-recovery-storage .fr-head h2{font:inherit;font-weight:700;font-size:13px;margin:0}#flove-recovery-storage button{font:inherit;color:inherit;cursor:pointer}#flove-recovery-storage .fr-close{display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;border-radius:8px;background:transparent;color:#64748b;font-size:18px}#flove-recovery-storage .fr-close:hover{background:rgba(148,163,184,.12)}#flove-recovery-storage .fr-usage{white-space:pre-line;margin:0 0 7px}#flove-recovery-storage .fr-count{margin:0 0 12px;font-size:11px;color:#64748b;overflow-wrap:anywhere}#flove-recovery-storage .fr-warning{margin:8px 0;padding:8px;border-radius:8px;background:#fffbeb;color:#92400e;font-size:11px;white-space:pre-line}#flove-recovery-storage [hidden]{display:none!important}#flove-recovery-storage .fr-actions{display:flex;flex-direction:column;gap:6px}#flove-recovery-storage .fr-actions button{min-height:33px;padding:6px 9px;border:1px solid var(--border-color,#e2e8f0);border-radius:9px;background:transparent;font-size:11px}#flove-recovery-storage .fr-actions button:hover{background:rgba(148,163,184,.08)}#flove-recovery-storage .fr-policy{margin-top:10px;color:#64748b;font-size:10.5px}#flove-recovery-storage .fr-policy>summary{cursor:pointer;width:fit-content}#flove-recovery-storage .fr-policy p{margin:7px 0 0;line-height:1.7}#flove-recovery-storage .fr-caption{font-size:10px;color:#94a3b8;margin:9px 0 0}@media(max-width:600px){#flove-recovery-storage>summary{min-height:34px}#flove-recovery-storage .fr-panel{padding:12px}}@media(prefers-reduced-motion:reduce){#flove-recovery-storage>summary{transition:none}}@media print{#flove-recovery-footer{display:none!important}}`;
+  document.head.appendChild(style);
+ }
+ const host=document.createElement('div');host.id='flove-recovery-footer';if(cfg.page==='timer')host.dataset.timer='true';
  const view=document.createElement('details');view.id='flove-recovery-storage';
- Object.assign(view.style,{margin:'8px 12px',padding:'8px 12px',border:'1px solid #cbd5e1',borderRadius:'10px',background:'#fff',color:'#334155',fontSize:'12px'});
- const summary=document.createElement('summary');summary.textContent='기기 복구본 관리';summary.style.cursor='pointer';
- view.addEventListener('keydown',e=>{if(cfg.page==='timer')e.stopPropagation();});
- const text=document.createElement('p');text.style.whiteSpace='pre-line';text.setAttribute('role','status');
- const check=document.createElement('button'),exportAll=document.createElement('button');check.type=exportAll.type='button';check.textContent='사용량 다시 확인';exportAll.textContent='보관된 복구본 전체 내려받기';
- for(const b of [check,exportAll])Object.assign(b.style,{margin:'4px',padding:'6px 8px',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#f8fafc',color:'#334155'});
+ const summary=document.createElement('summary');summary.title='기기 백업·복구 관리';
+ summary.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7"/></svg><span>백업·복구</span>';
+ const panel=document.createElement('div');panel.className='fr-panel';
+ const header=document.createElement('div');header.className='fr-head';
+ const title=document.createElement('h2');title.textContent='백업·복구';
+ const close=document.createElement('button');close.type='button';close.className='fr-close';close.textContent='×';close.setAttribute('aria-label','복구본 관리 닫기');
+ header.append(title,close);
+ const usage=document.createElement('p');usage.className='fr-usage';usage.setAttribute('role','status');
+ const count=document.createElement('p');count.className='fr-count';
+ const warning=document.createElement('p');warning.className='fr-warning';warning.hidden=true;
+ const actions=document.createElement('div');actions.className='fr-actions';
+ const check=document.createElement('button'),exportAll=document.createElement('button');check.type=exportAll.type='button';check.textContent='사용량 다시 확인';exportAll.textContent='보관된 복구본 전체 내려받기';actions.append(check,exportAll);
+ const policy=document.createElement('details');policy.className='fr-policy';
+ const policyTitle=document.createElement('summary');policyTitle.textContent='보관 기준';
+ const policyText=document.createElement('p');policyText.textContent='기존 일반 복구본은 7일 이상 지난 것만 정리하며 화면별 최신 2개는 남깁니다. 새 일반 복구본은 화면별 8개·합계 추정 1 MiB를 목표로 하되 최신 1개와 최근 1분 복구본을 보호합니다. 충돌·초기화 전·손상·분류 불명 복구본은 자동 삭제하지 않습니다. 따라서 전체 용량의 강제 상한은 아닙니다.';
+ policy.append(policyTitle,policyText);
+ const caption=document.createElement('p');caption.className='fr-caption';caption.textContent='사용량은 추정치이며 남은 localStorage 용량은 정확히 알 수 없습니다.';
+ panel.append(header,usage,count,warning,actions,policy,caption);view.append(summary,panel);host.append(view);
  const kib=n=>(n/1024).toFixed(1)+' KiB';
- recoveryRender=()=>{if(!view.open)return;try{const s=requireRecovery().stats();text.textContent='이 사이트 localStorage 사용 추정: '+kib(s.estimatedLocalStorageBytes)+'\n복구본 사용 추정: '+kib(s.estimatedRecoveryBytes)+'\n새 일반 '+s.automaticCount+'개 · 기존 일반 '+s.legacyAutomaticCount+'개 · 보호·분류 불명 '+s.protectedCount+'개\n기존 정리 대기 '+s.legacyCleanupCandidateCount+'개. 7일 이상 지난 일반 복구본만 정리하며 화면별 최신 기존 복구본 2개는 유지합니다.\n새 일반 복구본 보관 목표: 화면별 8개 · 합계 1 MiB. 화면별 최신 1개와 최근 1분 복구본은 우선 보호합니다.\n충돌·초기화 전·손상·분류 불명 복구본은 자동 삭제하지 않습니다. 전체 용량의 강제 상한은 아닙니다.\n문자열 길이 기준 추정치입니다. 남은 localStorage 용량은 정확히 알 수 없습니다.'+(s.warning?'\n안내: '+s.warning:'')+(recoveryNotice?'\n'+recoveryNotice:'');}catch(e){text.textContent='사용량 확인 실패 — 기존 기록 유지: '+e.message;}};
- check.addEventListener('click',recoveryRender);view.addEventListener('toggle',recoveryRender);
- exportAll.addEventListener('click',()=>{let url;try{url=URL.createObjectURL(new Blob([JSON.stringify(requireRecovery().archive(),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Flove_보관복구본_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){text.textContent='복구본 내보내기 실패: '+e.message;}finally{if(url)setTimeout(()=>URL.revokeObjectURL(url),1000);}});
+ recoveryRender=()=>{if(!view.open)return;try{const s=requireRecovery().stats();usage.textContent='기기 저장소  '+kib(s.estimatedLocalStorageBytes)+'\n복구본  '+kib(s.estimatedRecoveryBytes);count.textContent='일반 '+s.automaticCount+' · 기존 '+s.legacyAutomaticCount+' · 보호 '+s.protectedCount+' · 정리 대기 '+s.legacyCleanupCandidateCount;warning.textContent=[s.warning,recoveryNotice].filter(Boolean).join('\n');warning.hidden=!warning.textContent;}catch(e){usage.textContent='사용량 확인 실패 — 기존 기록 유지';count.textContent='';warning.textContent=e.message;warning.hidden=false;}};
+ view.addEventListener('toggle',recoveryRender);check.addEventListener('click',recoveryRender);
+ const fitPanel=()=>{if(!view.open)return;panel.style.transform='';const r=panel.getBoundingClientRect(),width=document.documentElement.clientWidth;const shift=r.left<12?12-r.left:r.right>width-12?width-12-r.right:0;panel.style.transform=shift?'translateX('+shift+'px)':'';};
+ view.addEventListener('toggle',fitPanel);window.addEventListener('resize',fitPanel);
+ close.addEventListener('click',()=>{view.open=false;summary.focus();});
+ view.addEventListener('keydown',e=>{if(cfg.page==='timer')e.stopPropagation();if(e.key==='Escape'&&view.open){view.open=false;summary.focus();e.stopPropagation();}});
+ document.addEventListener('pointerdown',e=>{if(view.open&&!view.contains(e.target))view.open=false;});
+ exportAll.addEventListener('click',()=>{let url;try{url=URL.createObjectURL(new Blob([JSON.stringify(requireRecovery().archive(),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='Flove_보관복구본_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();}catch(e){warning.textContent='복구본 내보내기 실패: '+e.message;warning.hidden=false;}finally{if(url)setTimeout(()=>URL.revokeObjectURL(url),1000);}});
  window.addEventListener('storage',e=>{if(e.key===null||e.key.startsWith('__flove_sync_recovery_'))recoveryRender();});
- const style=document.createElement('style');style.textContent='@media print{#flove-recovery-storage{display:none!important}}';document.head.appendChild(style);
- view.append(summary,text,check,exportAll);box.insertAdjacentElement('afterend',view);
+ (document.querySelector('body > footer')||document.body).appendChild(host);
 }
 
 let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks;
