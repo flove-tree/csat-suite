@@ -45,11 +45,96 @@ function scheduleCorrectionLayout(){if(layoutFrame)cancelAnimationFrame(layoutFr
 function layoutWebCorrections(){noteList.querySelectorAll('.sentence-row').forEach(row=>{row.style.lineHeight='';row.style.marginBottom='';const containers=[...row.querySelectorAll('.correction-container')];if(!containers.length)return;const width=Math.max(40,row.getBoundingClientRect().width-8);containers.forEach(c=>{const badge=c.querySelector('.correct-badge');badge.style.maxWidth=width+'px';badge.style.transform='';});const height=Math.max(...containers.map(c=>c.querySelector('.correction-below').getBoundingClientRect().height)),style=getComputedStyle(row),base=parseFloat(style.lineHeight)||parseFloat(style.fontSize)*2.3;if(row.getBoundingClientRect().height>base*1.45)row.style.lineHeight=Math.max(base,parseFloat(style.fontSize)*1.6+height+8)+'px';const bounds=row.getBoundingClientRect();let lowest=bounds.bottom;containers.forEach(c=>{const badge=c.querySelector('.correct-badge'),r=badge.getBoundingClientRect();let shift=0;if(r.left<bounds.left+4)shift=bounds.left+4-r.left;else if(r.right>bounds.right-4)shift=bounds.right-4-r.right;if(shift)badge.style.transform=`translateX(${shift}px)`;lowest=Math.max(lowest,c.querySelector('.correction-below').getBoundingClientRect().bottom);});row.style.marginBottom=Math.ceil(Math.max(12,lowest-bounds.bottom+10))+'px';});}
 function exportJSON(){syncCategoryOrder();const blob=new Blob([JSON.stringify({version:13,notes,categoryOrder},null,2)],{type:'application/json;charset=utf-8'});downloadBlob(blob,`생윤_오답노트_백업_${new Date().toISOString().slice(0,10)}.json`);}
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-function importJSON(){document.getElementById('fileInput').click();}
 function parseBackup(data){const legacy=Array.isArray(data),list=legacy?data:data?.notes;if(!Array.isArray(list)||!list.every(n=>n&&typeof n.originalText==='string'))throw new Error('올바른 노트 백업이 아닙니다.');const used=new Set();let next=Date.now();const normalized=list.map(n=>{let id=Number(n.id);if(!Number.isFinite(id)||used.has(id)){while(used.has(next))next++;id=next++;}used.add(id);return {...n,id,thinker:String(n.thinker||''),memo:String(n.memo||''),reasonTag:String(n.reasonTag||''),source:String(n.source||''),corrections:(Array.isArray(n.corrections)?n.corrections:[]).map(c=>({...c,wrong:String(c.wrong||''),correct:String(c.correct||'')}))};});if(legacy)normalized.sort((a,b)=>a.id-b.id);return {notes:normalized,categoryOrder:legacy?[]:(Array.isArray(data.categoryOrder)?data.categoryOrder.filter(c=>typeof c==='string'):[])};}
-function loadJSON(event){const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{try{const p=parseBackup(JSON.parse(e.target.result));notes=p.notes;categoryOrder=p.categoryOrder;cancelEdit();saveNotes();updateFilterOptions();renderNotes();alert('노트와 정렬 순서를 불러왔습니다.');}catch(error){alert('불러오기 실패: '+error.message);}finally{event.target.value='';}};reader.readAsText(file);}
+let ethicsImportBusy=false;
+function ethicsImportDrafting(){
+  if(editingId!==null)return true;
+  return [...noteForm.querySelectorAll('input[type="text"],textarea,.wrong-input,.correct-input')].some(el=>el.value.trim()!=='')||Number(document.getElementById('recordCount')?.value||1)!==1;
+}
+function assertEthicsImportIdle(){if(ethicsImportDrafting())throw Error('작성·수정 중인 입력을 먼저 저장하거나 취소·비운 뒤 불러와 주세요.');}
+function importJSON(){
+  try{if(ethicsImportBusy)throw Error('백업을 읽는 중입니다. 잠시 후 다시 시도해 주세요.');assertEthicsImportIdle();document.getElementById('fileInput').click();}
+  catch(error){alert('불러오기 중단: '+error.message);}
+}
+function validateEthicsImport(data){
+  const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x),has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+  const list=Array.isArray(data)?data:object(data)?data.notes:null;
+  if(!Array.isArray(list)||list.length>20000)throw Error('생윤 기록 배열이 아니거나 기록 수가 너무 많습니다.');
+  if(!list.length)throw Error('빈 백업으로 기존 생윤 기록을 지우지는 않습니다.');
+  if(!Array.isArray(data)){
+    if(has(data,'version')&&(!Number.isSafeInteger(data.version)||data.version<1||data.version>14))throw Error('지원하지 않는 백업 버전입니다.');
+    for(const key of ['categoryOrder','groupOrder','units'])if(has(data,key)&&(!Array.isArray(data[key])||data[key].some(x=>typeof x!=='string')))throw Error('백업 정렬 정보가 올바르지 않습니다.');
+  }
+  for(const [index,n]of list.entries()){
+    const where=(index+1)+'번째 선지: ';
+    if(!object(n)||typeof n.originalText!=='string')throw Error(where+'생윤 원문 형식이 아닙니다.');
+    for(const key of ['thinker','memo','reasonTag','source','unit'])if(has(n,key)&&typeof n[key]!=='string')throw Error(where+key+' 형식이 올바르지 않습니다.');
+    if(has(n,'recordType')&&!['correction','confused'].includes(n.recordType))throw Error(where+'기록 유형이 올바르지 않습니다.');
+    if(has(n,'recordCount')&&(!Number.isSafeInteger(n.recordCount)||n.recordCount<1))throw Error(where+'누적 기록 횟수가 올바르지 않습니다.');
+    if(has(n,'isStar')&&typeof n.isStar!=='boolean')throw Error(where+'중요 표시 형식이 올바르지 않습니다.');
+    if(!has(n,'corrections'))continue;
+    if(!Array.isArray(n.corrections)||n.corrections.length>20000)throw Error(where+'교정 목록이 올바르지 않습니다.');
+    for(const c of n.corrections){
+      if(!object(c)||typeof c.wrong!=='string'||!c.wrong||has(c,'correct')&&typeof c.correct!=='string')throw Error(where+'교정 내용이 올바르지 않습니다.');
+      if(has(c,'action')&&!['replace','mark'].includes(c.action))throw Error(where+'교정 방식이 올바르지 않습니다.');
+      if(has(c,'start')||has(c,'end'))if(!Number.isSafeInteger(c.start)||!Number.isSafeInteger(c.end)||c.start<0||c.end<=c.start||c.end>n.originalText.length||n.originalText.slice(c.start,c.end)!==c.wrong)throw Error(where+'원문과 교정 위치가 일치하지 않습니다.');
+    }
+  }
+  return data;
+}
+async function loadJSON(event){
+  const input=event.target,file=input.files&&input.files[0];if(!file)return;
+  if(ethicsImportBusy){alert('백업을 읽는 중입니다. 잠시 후 다시 시도해 주세요.');return;}
+  ethicsImportBusy=true;
+  let before=null,staged=false,committed=false;
+  const read=()=>({notes:localStorage.getItem(NOTES_KEY),layout:localStorage.getItem(LAYOUT_KEY)});
+  const same=(a,b)=>a.notes===b.notes&&a.layout===b.layout;
+  const unchanged=()=>{assertEthicsImportIdle();if(!same(read(),before.raw)||JSON.stringify(notes)!==before.notesJSON||JSON.stringify(categoryOrder)!==before.orderJSON)throw Error('불러오는 동안 기기 기록이 바뀌었습니다. 다시 시도해 주세요.');};
+  try{
+    assertEthicsImportIdle();
+    if(file.size>10*1024*1024)throw Error('10 MiB 이하의 JSON 파일을 선택해 주세요.');
+    const s=window.FloveSync;
+    for(const key of ['validateData','backupCurrent','saveBatch','markSaved'])if(!s||typeof s[key]!=='function')throw Error('백업·저장 관리가 준비되지 않았습니다. 새로고침 후 다시 시도해 주세요.');
+    before={raw:read(),notes,order:categoryOrder,layout:storedLayout,notesJSON:JSON.stringify(notes),orderJSON:JSON.stringify(categoryOrder),thinker:filterThinker.value};
+    const data=validateEthicsImport(JSON.parse((await file.text()).replace(/^\uFEFF/,''))),p=parseBackup(data);
+    unchanged();
+    let order,layout;
+    if(typeof ethicsOrder==='function'){
+      order=ethicsOrder(p.notes,p.categoryOrder);
+      layout={manualOrder:true,version:14,categoryOrder:[...new Set(order.map(c=>ethicsParts(c)[1]))],groupOrder:order};
+    }else{
+      const names=[...new Set(p.notes.map(getCategory))];
+      order=[...new Set(p.categoryOrder)].filter(c=>names.includes(c));names.forEach(c=>{if(!order.includes(c))order.push(c);});
+      layout={manualOrder:true,categoryOrder:order};
+    }
+    const values={[NOTES_KEY]:JSON.stringify(p.notes),[LAYOUT_KEY]:JSON.stringify(layout)};
+    for(const[k,v]of Object.entries(values))s.validateData(k,v);
+    if(values[NOTES_KEY]===before.raw.notes&&values[LAYOUT_KEY]===before.raw.layout){alert('백업과 기기 기록이 같아 변경하지 않았습니다.');return;}
+    if(!confirm('생윤 노트와 정렬 순서를 백업으로 전체 교체합니다. 자동 병합이 아닙니다.\n현재 '+notes.length+'개 → 백업 '+p.notes.length+'개\n\n기존 기기 기록을 자동 보관한 뒤 교체하며 다른 과목은 변경하지 않습니다.\n서버 반영은 기존 동기화 절차에서 처리하고 충돌 시 확인이 필요합니다.\n계속할까요?'))return;
+    unchanged();s.backupCurrent('before-ethics-json-import');unchanged();
+    staged=true;notes=p.notes;categoryOrder=order;storedLayout=layout;
+    updateFilterOptions();renderNotes();
+    assertEthicsImportIdle();
+    if(!same(read(),before.raw))throw Error('화면을 준비하는 동안 기기 기록이 바뀌어 교체를 중단했습니다.');
+    s.saveBatch(values);committed=true;
+    if(!same(read(),{notes:values[NOTES_KEY],layout:values[LAYOUT_KEY]}))throw Error('저장 직후 기기 기록이 바뀌었습니다. 기존 원본은 자동 보관되어 있습니다.');
+    s.markSaved();
+    alert('노트와 정렬 순서를 기기에 불러왔습니다. 서버 저장 여부는 기존 동기화 상태에서 확인해 주세요.');
+  }catch(error){
+    if(staged&&before){
+      try{
+        const current=read();
+        if(same(current,before.raw)){notes=before.notes;categoryOrder=before.order;storedLayout=before.layout;}
+        else{notes=current.notes===null?[]:JSON.parse(current.notes);storedLayout=current.layout===null?{}:JSON.parse(current.layout);categoryOrder=Array.isArray(storedLayout.groupOrder)?storedLayout.groupOrder:Array.isArray(storedLayout.categoryOrder)?storedLayout.categoryOrder:[];}
+        updateFilterOptions();if([...filterThinker.options].some(o=>o.value===before.thinker))filterThinker.value=before.thinker;renderNotes();
+      }catch(restoreError){console.error('[Ethics import] Screen recovery failed',restoreError);}
+    }
+    console.error('[Ethics import]',error);
+    alert((committed?'불러오기 후 확인 실패: ':'불러오기 중단: ')+error.message);
+  }finally{ethicsImportBusy=false;input.value='';}
+}
 filterThinker.addEventListener('change',renderNotes);noteList.addEventListener('click',handleNoteAction);window.addEventListener('resize',scheduleCorrectionLayout);
 document.addEventListener('DOMContentLoaded',()=>{setupEthicsScrollButtons();cancelEdit();saveNotes();updateFilterOptions();renderNotes();if(document.fonts)document.fonts.ready.then(scheduleCorrectionLayout);if(window.ResizeObserver){let last=-1;new ResizeObserver(e=>{const width=Math.round(e[0].contentRect.width);if(width!==last){last=width;scheduleCorrectionLayout();}}).observe(noteList);}});
 // Flove V2 screen adapter
-FloveSync.register({editing:()=>editingId!==null,refresh:()=>{notes=FloveSync.readArray(NOTES_KEY);const raw=localStorage.getItem(LAYOUT_KEY);storedLayout=raw===null?{}:JSON.parse(raw);categoryOrder=Array.isArray(storedLayout.groupOrder)?storedLayout.groupOrder:[];updateFilterOptions();renderNotes();}});
+FloveSync.register({editing:()=>ethicsImportBusy||editingId!==null,refresh:()=>{notes=FloveSync.readArray(NOTES_KEY);const raw=localStorage.getItem(LAYOUT_KEY);storedLayout=raw===null?{}:JSON.parse(raw);categoryOrder=Array.isArray(storedLayout.groupOrder)?storedLayout.groupOrder:[];updateFilterOptions();renderNotes();}});
 
