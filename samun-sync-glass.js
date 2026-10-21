@@ -146,6 +146,10 @@ if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.discon
         get('noteContent').focus();
       } else {
         form.reset();
+        if (!editing) {
+          get('examCategory').value = values.category;
+          get('unitSelect').value = values.unit;
+        }
       }
       apply();
     }, true);
