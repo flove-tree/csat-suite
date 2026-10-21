@@ -75,3 +75,80 @@ function start(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true,signal:events.signal});else start();
 })();
+
+/* Keyboard-only timer entry; existing timer functions remain authoritative. */
+(() => {
+'use strict';
+if((window.FLOVE_SYNC_CONFIG||{}).page!=='timer'||window.__floveTimerKeyboardV1)return;
+window.__floveTimerKeyboardV1=true;
+function mountKeyboard(){
+ const clock=document.getElementById('clockWrapper'),minInput=document.getElementById('inputMin'),secInput=document.getElementById('inputSec');
+ if(!clock||!minInput||!secInput||typeof window.setDuration!=='function')return;
+ const notice=document.createElement('div');notice.id='timer-keyboard-entry';notice.hidden=true;
+ notice.setAttribute('role','status');notice.setAttribute('aria-live','polite');
+ notice.style.cssText='position:fixed;z-index:10003;bottom:20px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 32px);padding:12px 18px;border:1px solid var(--primary);border-radius:14px;background:var(--card-bg,#fff);color:var(--text-main,#334155);box-shadow:0 8px 30px #0002;text-align:center;font-size:14px;line-height:1.7;pointer-events:none;white-space:pre-line';
+ document.body.appendChild(notice);
+ const hint=document.querySelector('.shortcut-hint');
+ if(hint){const extra=document.createElement('span');extra.textContent='M: 중앙 정렬 / -: 시간 입력 / .: 초 입력 / Enter: 확정 / Esc: 취소';hint.appendChild(extra);}
+ let draft=null;
+ const editable=el=>el&&(el.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(el.tagName));
+ const protectedUI=el=>el&&el.closest&&el.closest('#flove-sync-v2-panel,#flove-recovery-footer,dialog,[role="dialog"]');
+ function center(){
+  const r=clock.getBoundingClientRect();if(!r.width||!r.height)return;
+  const root=document.scrollingElement||document.documentElement;
+  const top=Math.max(0,Math.min(Math.max(0,root.scrollHeight-root.clientHeight),window.scrollY+r.top+r.height/2-window.innerHeight/2));
+  window.scrollTo({top,left:window.scrollX,behavior:'instant'});
+ }
+ function render(error=''){
+  notice.hidden=false;
+  notice.textContent=`시간 설정 · ${draft.part==='min'?'분':'초'} 입력: ${draft.min||'_'}분 ${draft.sec?draft.sec.padStart(2,'0'):'__'}초\n${error||'. 초 입력 · Enter 확정 · Backspace 수정 · Esc 취소'}`;
+ }
+ function cancel(){draft=null;notice.hidden=true;}
+ function begin(){
+  const active=document.activeElement;if(active&&active.tagName==='BUTTON')active.blur();
+  draft={part:'min',min:'',sec:''};render();
+ }
+ function commit(){
+  const minutes=Number(draft.min||0),seconds=Number(draft.sec||0);
+  if(minutes>180||seconds>59){render('분은 0~180, 초는 0~59로 입력해 주세요.');return;}
+  if(minutes*60+seconds<=0){render('0초보다 긴 시간을 입력해 주세요.');return;}
+  minInput.value=String(minutes);secInput.value=String(seconds);
+  window.setDuration(minutes*60+seconds,'시간 설정됨');cancel();
+ }
+ window.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  const active=document.activeElement;
+  if(editable(active)||protectedUI(active)){if(draft)cancel();return;}
+  if(e.isComposing){if(draft){e.preventDefault();e.stopImmediatePropagation();}return;}
+  const isM=e.code==='KeyM'||e.key.toLowerCase()==='m';
+  const isMinus=e.key==='-'||(!e.shiftKey&&e.code==='Minus')||e.code==='NumpadSubtract';
+  if(!draft){
+   if(!isM&&!isMinus)return;
+   e.preventDefault();e.stopImmediatePropagation();if(e.repeat)return;
+   if(isM)center();else begin();return;
+  }
+  if(e.key==='Tab'){cancel();return;}
+  e.preventDefault();e.stopImmediatePropagation();if(e.repeat)return;
+  if(e.key==='Escape'){cancel();return;}
+  if(isM){center();return;}
+  if(isMinus){begin();return;}
+  if(e.key==='Backspace'){
+   if(draft.part==='sec'&&!draft.sec)draft.part='min';
+   else draft[draft.part]=draft[draft.part].slice(0,-1);
+   render();return;
+  }
+  if(e.key==='.'||(!e.shiftKey&&e.code==='Period')||e.code==='NumpadDecimal'){draft.part='sec';render();return;}
+  if(e.key==='Enter'){commit();return;}
+  if(/^\d$/.test(e.key)){
+   const part=draft.part,next=draft[part]+e.key,limit=part==='min'?180:59,maxLength=part==='min'?3:2;
+   if(next.length>maxLength||Number(next)>limit){render(part==='min'?'분은 0~180까지 입력할 수 있어요.':'초는 0~59까지 입력할 수 있어요.');return;}
+   draft[part]=next;render();if(part==='sec'&&next.length===2)commit();
+  }
+ },true);
+ document.addEventListener('pointerdown',()=>{if(draft)cancel();},true);
+ document.addEventListener('focusin',e=>{if(draft&&(editable(e.target)||protectedUI(e.target)))cancel();});
+ window.addEventListener('blur',()=>{if(draft)cancel();});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden&&draft)cancel();});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mountKeyboard,{once:true});else mountKeyboard();
+})();
