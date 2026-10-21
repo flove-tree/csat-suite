@@ -54,26 +54,31 @@
     body += '<p class="created-date">생성일자: ' + escape(new Date().toLocaleDateString('ko-KR')) + '</p>';
     for (const subject of subjects) {
       const mode = preferences[subject] || 'manual';
-      const rows = orderNotes(source, subject, mode, unitOrders[subject] || []);
+      const units = unitOrders[subject] || [];
+      let rows = orderNotes(source, subject, mode, units);
       if (!rows.length) continue;
+      if (subject !== 'absolute') {
+        const groups = [...new Set(orderNotes(rows, subject, 'unit', units).map(note => groupOf(note, subject)))];
+        rows = groups.flatMap(group => rows.filter(note => groupOf(note, subject) === group));
+      }
       const title = titles[subject];
       body += '<h2 class="section-title" style="color:' + title.color + ';border-bottom:2pt solid ' + title.color + '">' + escape(title.text) + '</h2>';
       let last = null, opened = false;
       for (const note of rows) {
-        const group = mode === 'unit' && subject !== 'absolute' ? groupOf(note, subject) : '';
+        const group = subject !== 'absolute' ? groupOf(note, subject) : '';
         if (!opened || group !== last) {
-          if (opened) body += '</ol></td></tr></table>';
-          if (group) body += '<h3 class="unit-title" style="border-left:4pt solid #16a34a;color:#15803d;padding:7pt 12pt">' + escape(group) + '</h3>';
-          body += '<table class="content-box" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:12pt 0 20pt"><tr><td bgcolor="#f0fdf4" style="background-color:#f0fdf4;border-left:3pt solid #86efac;padding:8pt 14pt"><ol class="content-list">';
+          if (opened) body += '</ol>';
+          if (group) body += '<h3 class="unit-title">' + escape(group) + '</h3>';
+          body += '<ol class="content-list">';
           opened = true;
           last = group;
         }
         const content = text(note.content).trim() || text(note.passageTitle).trim() || '(빈 노트)';
         body += '<li>' + escape(content).replace(/\r\n|\r|\n/g, '<br>') + '</li>';
       }
-      if (opened) body += '</ol></td></tr></table>';
+      if (opened) body += '</ol>';
     }
-    const css = '@page{size:A4;margin:1.5cm}body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:12pt;line-height:1.7;color:#111827}.main-title{font-size:24pt;font-weight:bold;color:#111827;border-bottom:3pt solid #111827;padding-bottom:12pt;margin:0 0 12pt}.created-date{font-size:11pt;color:#737373;margin:0 0 28pt}.section-title{font-size:18pt;font-weight:bold;padding-bottom:8pt;margin:28pt 0 14pt;page-break-after:avoid}.unit-title{font-size:14pt;font-weight:bold;margin:14pt 0 8pt;page-break-after:avoid}.content-list{margin:0;padding-left:22pt}.content-list li{font-size:12pt;line-height:1.7;padding-left:4pt;margin:0 0 9pt}';
+    const css = '@page{size:A4;margin:1.5cm}body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:12pt;line-height:1.7;color:#111827}.main-title{font-size:24pt;font-weight:bold;color:#111827;border-bottom:3pt solid #111827;padding-bottom:12pt;margin:0 0 12pt}.created-date{font-size:11pt;color:#737373;margin:0 0 28pt}.section-title{font-size:18pt;font-weight:bold;padding-bottom:8pt;margin:28pt 0 14pt;page-break-after:avoid}.unit-title{font-size:14pt;font-weight:bold;margin:14pt 0 8pt;page-break-after:avoid}.content-list{margin:12pt 0 20pt;padding-left:22pt}.content-list li{font-size:12pt;line-height:1.7;padding-left:4pt;margin:0 0 9pt}';
     return '<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="ko"><head><meta charset="utf-8"><title>사회문화 통합 파이널 행동강령 체크리스트</title><style>' + css + '</style></head><body>' + body + '</body></html>';
   }
   if (typeof module !== 'undefined' && module.exports) {
@@ -116,7 +121,7 @@
     const hint = document.createElement('p');
     hint.className = 'hint';
     hint.style.cssText = 'flex-basis:100%;margin:0';
-    hint.textContent = '정렬은 탭별로 기억합니다. 단원별 묶기는 단원 안에서 최근 등록순이며, 미분류는 마지막입니다. Word 통합 내보내기는 검색·필터와 관계없이 세 탭 전체에 각 정렬을 적용합니다.';
+    hint.textContent = '정렬은 탭별로 기억합니다. 단원별 묶기는 단원 안에서 최근 등록순이며, 미분류는 마지막입니다. Word 통합 내보내기는 검색·필터와 관계없이 세 탭 전체를 포함하고, 개념 & 선지와 도표 & 통계는 항상 단원별로 구분합니다. 단원 안에서는 선택한 정렬을 유지합니다.';
     controls.append(hint);
     const originalRender = window.renderNotes;
     window.renderNotes = function(...args) {
