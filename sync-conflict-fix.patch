@@ -1,0 +1,9 @@
+--- a/sync-v2.js
++++ b/sync-v2.js
+@@ -1,1 +1,2 @@
+-async function cycle(){
++async function cycle(force=false){
++ if(conflicts.length && force!==true)return;
+@@ -1,1 +1,2 @@
+ async function choose(mode){
++ if(busy){alert('동기화 진행 중입니다. 완료 후 다시 선택해 주세요.');return;}
