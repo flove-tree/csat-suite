@@ -723,8 +723,8 @@
         card.innerHTML = `
           <div class="flex items-center justify-between pointer-events-none">
             <div class="flex items-center gap-1.5">
-              <input type="checkbox" id="q-check-${i}" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer pointer-events-auto" onclick="event.stopPropagation(); toggleQuestion(${i});">
-              <label for="q-check-${i}" class="font-bold text-sm text-slate-800 cursor-pointer pointer-events-auto">${i}번</label>
+              <input type="checkbox" id="q-check-${i}" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer pointer-events-auto" onclick="event.stopPropagation(); toggleQuestion(${i}, this.checked);">
+              <label for="q-check-${i}" onclick="event.stopPropagation()" class="font-bold text-sm text-slate-800 cursor-pointer pointer-events-auto">${i}번</label>
             </div>
             <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-600 font-semibold">${cat}</span>
           </div>
