@@ -7,7 +7,6 @@ const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k),val=(o,k)=>has(o,k)?o
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const planKey=k=>/^\d{4}-\d{2}-\d{2}-[A-Za-z0-9_-]+$/.test(k)||/^rolled-id-\d+-\d+$/.test(k)||/^flove-rolled-\d{4}-\d{2}-\d{2}$/.test(k)||['flove-active-preset','flove-custom-hex','flove-last-save'].includes(k);
 const own=k=>cfg.keys.includes(k)||(cfg.plan&&planKey(k))||(cfg.readOnly&&cfg.hubStatus&&cfg.inspectPlan&&planKey(k));
-const meta='__flove_sync_base_v2_'+cfg.page;
 const recoverySource=new URL(document.currentScript.src);
 let recoveryManagerInstance,recoveryReady=false,recoveryRender=()=>{},recoveryNotice='';
 function requireRecovery(){if(!recoveryReady||!recoveryManagerInstance)throw Error('복구본 관리 준비 전 — 기록 교체 중단');return recoveryManagerInstance;}
@@ -67,6 +66,58 @@ function mountRecovery(box){
  (document.querySelector('body > footer')||document.body).appendChild(host);
 }
 
+/* Persistent baseline v1: metadata only, scoped by endpoint and page. */
+function createPersistentBaseline(options){
+ const {storage,locks,page,server,owns,check}=options;
+ if(!['index','korean','math','eng','sang','samun','plan','timer'].includes(page))throw Error('기준본 화면 식별 오류');
+ const url=new URL(server);if(!['https:','http:'].includes(url.protocol)||url.username||url.password)throw Error('기준본 서버 식별 오류');
+ const identity=url.href,key='__flove_sync_baseline_v1:'+encodeURIComponent(identity)+':'+page;
+ if(!locks||typeof locks.request!=='function')throw Error('안전한 기준본 저장 잠금 미지원 — 자동 동기화 중단');
+ let observed,baseline;
+ function copy(values){
+  if(!obj(values))throw Error('기준본 형식 오류');
+  const result=Object.create(null);
+  for(const k of Object.keys(values).sort()){
+   if(!k||['__proto__','constructor','prototype'].includes(k)||!owns(k))throw Error('기준본 키 오류: '+k);
+   check(k,values[k]);if(values[k]!==null&&typeof values[k]!=='string')throw Error('기준본 값 오류: '+k);
+   result[k]=values[k];
+  }
+  return result;
+ }
+ function decode(raw){
+  if(raw===null)return {baseline:Object.create(null),revision:0};
+  const state=JSON.parse(raw);
+  if(!obj(state)||state.app!=='flove-confirmed-baseline'||state.version!==1||state.page!==page||state.endpoint!==identity||!Number.isSafeInteger(state.revision)||state.revision<1)throw Error('기준본 메타데이터 오류');
+  return {baseline:copy(state.baseline),revision:state.revision};
+ }
+ function load(){
+  const raw=storage.getItem(key),state=decode(raw);
+  observed=raw;baseline=state.baseline;return copy(baseline);
+ }
+ function assertCurrent(){
+  if(observed===undefined)throw Error('기준본 준비 전');
+  if(storage.getItem(key)!==observed)throw Error('다른 탭에서 기준본 변경 — 새로고침 후 재확인 필요');
+ }
+ async function confirm(updates,confirmed){
+  const delta=copy(updates);
+  if(!obj(confirmed))throw Error('기준본 확인 응답 오류');
+  for(const k of Object.keys(delta))if(delta[k]!==val(confirmed,k))throw Error('서버 확인값 불일치: '+k);
+  return locks.request(key,{mode:'exclusive'},()=>{
+   assertCurrent();
+   const current=decode(observed),next=copy({...baseline,...delta});
+   if(JSON.stringify(next)===JSON.stringify(baseline))return copy(baseline);
+   const revision=current.revision+1;if(!Number.isSafeInteger(revision))throw Error('기준본 버전 범위 오류');
+   const raw=JSON.stringify({app:'flove-confirmed-baseline',version:1,page,endpoint:identity,revision,baseline:next});
+   storage.setItem(key,raw);
+   if(storage.getItem(key)!==raw)throw Error('기준본 저장 결과 확인 실패');
+   observed=raw;baseline=next;return copy(baseline);
+  });
+ }
+ return {key,load,assertCurrent,confirm};
+}
+/* End persistent baseline v1. */
+let baselineStore=null;
+
 let base={},cloud={},adapter={},busy=false,dirty=false,stopped=false,conflicts=[],label,details,keysEl,hubLinks;
 function decide(known,b,l,r){if(l===r)return 'equal';if(!known)return l===null&&r!==null?'pull':'conflict';if(l===b)return 'pull';if(r===b)return 'push';return 'conflict';}
 function validate(k,v){
@@ -110,7 +161,9 @@ function renderHub(keys){
   hubLinks.appendChild(a);
  }
 }
-function remember(){sessionStorage.setItem(meta,JSON.stringify(base));}
+async function remember(updates,confirmed){
+ try{base=await baselineStore.confirm(updates,confirmed);}catch(e){stopped=true;throw Error('기준본 보존 실패 — 추가 동기화 중단: '+e.message);}
+}
 function snapshot(reason){return {format:'flove-sync-recovery-v2',createdAt:new Date().toISOString(),reason,page:cfg.page,local:local(),cloud:Object.fromEntries(Object.entries(cloud).filter(([k])=>own(k)))};}
 function backup(reason){const r=snapshot(reason);try{requireRecovery().save(r);recoveryNotice='';return r;}finally{recoveryRender();}}
 function download(){const u=URL.createObjectURL(new Blob([JSON.stringify(snapshot('download'),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='Flove_동기화복구_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
@@ -118,19 +171,163 @@ function show(keys){conflicts=keys;if(!details)return;details.hidden=!keys.lengt
 async function request(body){const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);try{const opt={cache:'no-store',signal:c.signal};if(body){opt.method='POST';opt.headers={'Content-Type':'text/plain;charset=UTF-8'};opt.body=JSON.stringify(body);}const r=await fetch(cfg.url||endpoint,opt);if(!r.ok)throw Error('HTTP '+r.status);const p=await r.json();if(!obj(p)||p.protocol!==2||!['success','conflict'].includes(p.result)||!obj(p.data))throw Error(p.message||'서버 V2 응답 오류');for(const[k,v]of Object.entries(p.data))if(own(k))validate(k,v);return p;}finally{clearTimeout(timer);}}
 function refresh(keys){if(adapter.refresh)adapter.refresh(keys);}
 function restore(old){for(const k of Object.keys(old)){try{if(old[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,old[k]);}catch(_){stopped=true;}}}
-function apply(keys){if(!keys.length)return;backup('before-cloud-apply');const old={};keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{for(const k of keys){const v=val(cloud,k);validate(k,v);if(v===null&&/notes_v\d+$|exam_logs_v\d+$/.test(k))localStorage.setItem(k,'[]');else if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}refresh(keys);}catch(e){restore(old);try{refresh(keys);}catch(_){stopped=true;}throw e;}keys.forEach(k=>{base[k]=val(cloud,k);});remember();}
+async function apply(keys){if(!keys.length)return;backup('before-cloud-apply');const old={};keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{for(const k of keys){const v=val(cloud,k);validate(k,v);if(v===null&&/notes_v\d+$|exam_logs_v\d+$/.test(k))localStorage.setItem(k,'[]');else if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}refresh(keys);}catch(e){restore(old);try{refresh(keys);}catch(_){stopped=true;}throw e;}await remember(Object.fromEntries(keys.map(k=>[k,val(cloud,k)])),cloud);}
+/* Stage 2B integration draft. Pending operations are metadata, never study keys. */
+function mergeAPI(){
+ const api=globalThis.FloveConservativeMerge;
+ if(!api||api.version!==1||typeof api.mergeSerialized!=='function')throw Error('병합 모듈 준비 전 — 자동 병합 중단');
+ return api;
+}
+function mergeEndpoint(){return new URL(cfg.url||endpoint).href;}
+function mergePendingKey(){return '__flove_sync_merge_pending_v1:'+encodeURIComponent(mergeEndpoint())+':'+cfg.page;}
+function runSyncFlow(task){
+ const locks=globalThis.navigator&&globalThis.navigator.locks;
+ if(!baselineStore||!locks||typeof locks.request!=='function')throw Error('동기화 작업 잠금 준비 전');
+ return locks.request(baselineStore.key+':flow-v1',{mode:'exclusive'},task);
+}
+function validateMergeRecord(record){
+ if(!obj(record)||record.format!=='flove-merge-pending-v1'||record.page!==cfg.page||record.endpoint!==mergeEndpoint()||typeof record.settled!=='boolean'||!Array.isArray(record.ops)||!record.ops.length||cfg.readOnly)throw Error('병합 대기 메타데이터 오류');
+ const seen=new Set();
+ for(const op of record.ops){
+  if(!obj(op)||typeof op.key!=='string'||!own(op.key)||seen.has(op.key)||typeof op.baseKnown!=='boolean'||!has(op,'base'))throw Error('병합 대기 항목 오류');
+  seen.add(op.key);
+  for(const name of ['local','expected','value']){
+   if(typeof op[name]!=='string')throw Error('병합 대기 기록 누락');
+   validate(op.key,op[name]);
+   if(!mergeAPI().mergeSerialized({key:op.key,known:false,local:op[name],remote:op[name]}).ok)throw Error('병합 대기 기록 형식 오류');
+  }
+  if(op.baseKnown){if(op.base!==null){validate(op.key,op.base);if(!mergeAPI().mergeSerialized({key:op.key,known:false,local:op.base,remote:op.base}).ok)throw Error('병합 대기 기준 오류');}}
+  else if(op.base!==null)throw Error('미확인 기준은 비어 있어야 합니다');
+ }
+ return record;
+}
+function readMergePending(){
+ try{
+  const raw=localStorage.getItem(mergePendingKey());if(raw===null)return null;
+  return {raw,record:validateMergeRecord(JSON.parse(raw))};
+ }catch(error){stopped=true;throw Error('병합 대기 기록 오류 — 원문 유지·자동 동기화 중단: '+error.message);}
+}
+function writeMergePending(record,expectedRaw){
+ try{
+  validateMergeRecord(record);const key=mergePendingKey();
+  if(localStorage.getItem(key)!==expectedRaw)throw Error('다른 탭에서 병합 대기 기록이 바뀌었습니다');
+  const raw=JSON.stringify(record);localStorage.setItem(key,raw);
+  if(localStorage.getItem(key)!==raw)throw Error('병합 대기 기록 재읽기 실패');
+  return {raw,record:JSON.parse(raw)};
+ }catch(error){stopped=true;throw Error('병합 대기 기록 보존 실패 — 추가 처리 중단: '+error.message);}
+}
+function clearMergePending(pending){
+ try{
+  const key=mergePendingKey();if(localStorage.getItem(key)!==pending.raw)throw Error('병합 대기 기록이 변경됐습니다');
+  localStorage.removeItem(key);if(localStorage.getItem(key)!==null)throw Error('병합 대기 기록 정리 확인 실패');
+ }catch(error){stopped=true;throw Error('병합 완료 확인 기록 정리 실패 — 추가 처리 중단: '+error.message);}
+}
+function mergeInputUnchanged(ops){return ops.every(op=>{const v=localStorage.getItem(op.key);return v===op.local||v===op.value;});}
+function mergeBaseCompatible(ops){return ops.every(op=>(has(base,op.key)===op.baseKnown&&val(base,op.key)===op.base)||(has(base,op.key)&&val(base,op.key)===op.value));}
+async function applyMergePending(pending,generation){
+ const ops=pending.record.ops,keys=ops.map(op=>op.key);
+ if(stopped||localSaveFailure||generation!==localSaveGeneration||!idle()||!mergeInputUnchanged(ops))return false;
+ if(typeof adapter.refresh!=='function')throw Error('병합 반영 어댑터 준비 전');
+ baselineStore.assertCurrent();if(!mergeBaseCompatible(ops))throw Error('병합 대기 기준과 현재 기준이 다릅니다');
+ if(ops.some(op=>val(cloud,op.key)!==op.value))throw Error('서버의 병합 결과를 확인하지 못했습니다');
+ backup('conflict-auto-apply');
+ const old=new Map(keys.map(k=>[k,localStorage.getItem(k)])),attempted=[];
+ try{
+  for(const op of ops){
+   if(localStorage.getItem(op.key)!==old.get(op.key))throw Error('병합 반영 중 기기 기록 변경');
+   if(old.get(op.key)!==op.value){attempted.push(op);localStorage.setItem(op.key,op.value);}
+   if(localStorage.getItem(op.key)!==op.value)throw Error('병합 반영 재읽기 실패');
+  }
+  refresh(keys);
+  if(ops.some(op=>localStorage.getItem(op.key)!==op.value))throw Error('화면 갱신 중 병합 기록 변경');
+ }catch(error){
+  let uncertain=false;
+  for(const op of attempted.reverse()){
+   try{
+    const current=localStorage.getItem(op.key),previous=old.get(op.key);
+    if(current!==previous){if(current!==op.value)throw Error('새 기기 변경이 있어 원복하지 않습니다');if(previous===null)localStorage.removeItem(op.key);else localStorage.setItem(op.key,previous);}
+    if(localStorage.getItem(op.key)!==previous)throw Error('원복 확인 실패');
+   }catch(rollbackError){uncertain=true;console.error('[Flove merge rollback]',rollbackError);}
+  }
+  try{refresh(keys);}catch(_){uncertain=true;}
+  stopped=true;
+  throw Error('병합 기기 반영 실패 — 복구본·대기 기록 유지'+(uncertain?' (원복 미확인)':'')+': '+error.message);
+ }
+ await remember(Object.fromEntries(ops.map(op=>[op.key,op.value])),cloud);
+ clearMergePending(pending);show([]);
+ status(generation===localSaveGeneration&&idle()?'서버 저장 성공 · '+new Date().toLocaleTimeString('ko-KR'):'자동 병합 반영 완료 — 새 기기 변경은 다음 조회에서 확인');
+ return true;
+}
+async function resumeMergePending(pending,generation){
+ const ops=pending.record.ops;
+ if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
+ if(!idle()){show([]);status('자동 병합 반영 대기 — 입력을 저장하거나 취소하세요',true);return;}
+ if(!mergeBaseCompatible(ops)){stopped=true;throw Error('병합 대기 기준 불일치 — 원본 유지·재확인 필요');}
+ if(ops.every(op=>val(cloud,op.key)===op.value)&&mergeInputUnchanged(ops)){
+  await applyMergePending(pending,generation);return;
+ }
+ backup('conflict-auto-review');
+ if(!pending.record.settled){
+  show([]);status('병합 저장 결과 미확인 — 기기 원본 유지·자동 재전송 보류',true);return;
+ }
+ show(ops.map(op=>op.key));
+}
+async function tryAutoMerge(keys,d,generation){
+ if(!idle()||typeof adapter.refresh!=='function')return false;
+ const ops=[];
+ for(const key of keys){
+  const result=mergeAPI().mergeSerialized({key,known:has(base,key),base:val(base,key),local:val(d,key),remote:val(cloud,key)});
+  if(!result.ok)return false;
+  ops.push({key,expected:val(cloud,key),value:result.value,local:val(d,key),baseKnown:has(base,key),base:val(base,key)});
+ }
+ if(!ops.length)return false;
+ if(stopped||localSaveFailure||generation!==localSaveGeneration||!idle()||ops.some(op=>localStorage.getItem(op.key)!==op.local))return true;
+ baselineStore.assertCurrent();if(readMergePending())throw Error('먼저 시작된 병합 대기 기록이 있습니다');
+ backup('conflict-auto-merge');
+ const writes=ops.filter(op=>op.value!==op.expected).map(op=>({key:op.key,expected:op.expected,value:op.value}));
+ let pending=writeMergePending({format:'flove-merge-pending-v1',page:cfg.page,endpoint:mergeEndpoint(),settled:!writes.length,ops},null);
+ show([]);
+ if(writes.length){
+  status('서버 저장 중…');
+  let response;
+  try{response=await request({protocol:2,ops:writes});}
+  catch(error){if(!stopped&&!localSaveFailure)status('병합 저장 결과 확인 대기 — 기기 원본 유지: '+error.message,true);console.error('[Flove automatic merge]',error);return true;}
+  if(stopped||localSaveFailure)return true;
+  cloud=response.data;
+  pending=writeMergePending({...pending.record,settled:true},pending.raw);
+  if(response.result==='success'&&writes.some(op=>val(response.data,op.key)!==op.value)){
+   stopped=true;throw Error('병합 성공 응답의 저장값 불일치 — 원본·대기 기록 유지');
+  }
+ }
+ await resumeMergePending(pending,generation);return true;
+}
+/* End stage 2B integration draft. */
+
 async function cycle(force=false){
  if(conflicts.length&&force!==true)return;
  if(busy||stopped||localSaveFailure||!recoveryReady||document.hidden)return;if(!cfg.keys.length&&!cfg.plan){status('타이머: 클라우드 저장 대상 없음');return;}busy=true;const generation=localSaveGeneration;
- try{const p=await request();if(stopped||localSaveFailure||generation!==localSaveGeneration)return;cloud=p.data;const d=local(),keys=[...new Set([...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own)])],pull=[],ops=[],bad=[];
- for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle())base[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
+ try{await runSyncFlow(async()=>{
+ if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
+ baselineStore.assertCurrent();
+ const p=await request();if(stopped||localSaveFailure||generation!==localSaveGeneration)return;if(p.result!=='success')throw Error('서버 조회 성공 확인 실패');baselineStore.assertCurrent();
+ cloud=p.data;const pending=readMergePending();if(pending){await resumeMergePending(pending,generation);return;}
+ const d=local(),keys=[...new Set([...cfg.keys,...Object.keys(d),...Object.keys(cloud).filter(own),...Object.keys(base).filter(own)])],pull=[],ops=[],bad=[],equal={};
+ for(const k of keys){validate(k,val(d,k));const a=decide(has(base,k),val(base,k),val(d,k),val(cloud,k));if(a==='equal'){if(idle())equal[k]=val(cloud,k);}else if(a==='pull')pull.push(k);else if(a==='push')ops.push({key:k,expected:val(cloud,k),value:val(d,k)});else bad.push(k);}
+ await remember(equal,cloud);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
+ if(keys.some(k=>localStorage.getItem(k)!==val(d,k)))return;
  if(cfg.readOnly){
-  if(cfg.hubStatus){const action=hubActions(pull,ops,bad,idle());if(action.applyKeys.length)apply(action.applyKeys);remember();show([]);renderHub(action.pending);return;}
-  if(pull.length&&idle())apply(pull);remember();show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;
+  if(cfg.hubStatus){const action=hubActions(pull,ops,bad,idle());if(action.applyKeys.length)await apply(action.applyKeys);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;show([]);renderHub(action.pending);return;}
+  if(pull.length&&idle())await apply(pull);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;
  }
- show(bad);if(bad.length)return;if(pull.length){if(!idle()){status('다른 기기 변경 대기 — 입력을 저장하거나 취소하세요',true);return;}apply(pull);}
- if(ops.length){status('서버 저장 중…');const s=await request({protocol:2,ops});if(stopped||localSaveFailure||generation!==localSaveGeneration)return;if(s.result==='conflict'){cloud=s.data;show(s.keys||ops.map(o=>o.key));return;}ops.forEach(o=>{base[o.key]=o.value;});remember();status('서버 저장 성공 · '+new Date().toLocaleTimeString('ko-KR'));}else{remember();status('동기화 확인 · '+new Date().toLocaleTimeString('ko-KR'));}
- }catch(e){status('동기화 실패 — 기기 기록 유지: '+e.message,true);console.error('[Flove Sync V2]',e);}finally{busy=false;}
+ if(bad.length){if(await tryAutoMerge(bad,d,generation))return;show(bad);return;}show([]);if(pull.length){if(!idle()){status('다른 기기 변경 대기 — 입력을 저장하거나 취소하세요',true);return;}await apply(pull);}
+ if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
+ if(ops.some(o=>localStorage.getItem(o.key)!==o.value))return;
+ if(ops.length){
+  baselineStore.assertCurrent();status('서버 저장 중…');const s=await request({protocol:2,ops});if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
+  if(s.result==='conflict'){cloud=s.data;show(s.keys||ops.map(o=>o.key));return;}
+  await remember(Object.fromEntries(ops.map(o=>[o.key,o.value])),s.data);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;status('서버 저장 성공 · '+new Date().toLocaleTimeString('ko-KR'));
+ }else{status('동기화 확인 · '+new Date().toLocaleTimeString('ko-KR'));}
+ });}catch(e){status((stopped?'동기화 중단: ':'동기화 실패 — 기기 기록 유지: ')+e.message,true);console.error('[Flove Sync V2]',e);}finally{busy=false;}
 }
 function choiceStatus(message){
  status('충돌 '+conflicts.length+'개 — '+message,true);
@@ -142,18 +339,45 @@ function choiceStatus(message){
 async function choose(mode){
  if(busy){choiceStatus('다른 동기화 진행 중 — 완료 후 다시 선택해 주세요.');return;}
  if(stopped||localSaveFailure){choiceStatus(localSaveFailure?localSaveFailure.message:'동기화가 중단됐습니다. 원본을 보관한 뒤 새로고침해 주세요.');return;}
- if(cfg.readOnly||!conflicts.length)return;if(!idle()){choiceStatus('먼저 입력을 저장하거나 수정을 취소하세요.');return;}
- const keys=conflicts.slice(),d=local();if(!confirm(keys.join('\n')+'\n\n'+(mode==='local'?'이 기기 기록으로 서버':'서버 기록으로 이 기기')+'를 교체할까요? 기록 묶음 전체 교체이며 자동 병합이 아닙니다. 양쪽 원본은 교체 전에 보존합니다.'))return;
- busy=true;const generation=localSaveGeneration,buttons=details?[...details.querySelectorAll('button')]:[],disabled=buttons.map(b=>b.disabled);
+ if(cfg.readOnly||!conflicts.length)return;
+ if(!idle()){choiceStatus('먼저 입력을 저장하거나 수정을 취소하세요.');return;}
+ const keys=conflicts.slice(),d=local();
+ if(!confirm(keys.join('\n')+'\n\n'+(mode==='local'?'이 기기 기록으로 서버':'서버 기록으로 이 기기')+'를 교체할까요? 기록 묶음 전체 교체이며 자동 병합이 아닙니다. 양쪽 원본은 교체 전에 보존합니다.'))return;
+ busy=true;
+ const generation=localSaveGeneration,buttons=details?[...details.querySelectorAll('button')]:[],disabled=buttons.map(b=>b.disabled);
  try{
- buttons.forEach(b=>{b.disabled=true;});choiceStatus('처리 중 — 양쪽 원본 백업 준비…');
- await new Promise(resolve=>setTimeout(resolve,0));
- if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌어 교체를 중단했습니다.');return;}
- const current=local();if(!idle()||keys.some(k=>val(current,k)!==val(d,k))){choiceStatus('입력 또는 기기 기록이 바뀌어 교체를 중단했습니다.');return;}
- backup('conflict-'+mode);choiceStatus(mode==='local'?'처리 중 — 기기 기록을 서버에 저장하고 있습니다…':'처리 중 — 서버 최신 기록을 확인하고 있습니다…');
- if(mode==='local'){const ops=keys.map(k=>({key:k,expected:val(cloud,k),value:val(d,k)}));ops.forEach(o=>validate(o.key,o.value));const p=await request({protocol:2,ops});if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌었습니다. 서버 반영 여부를 다시 조회해 확인해 주세요.');return;}if(p.result==='conflict'){cloud=p.data;show(p.keys||keys);choiceStatus('서버 기록이 변경됐습니다. 확인 후 다시 선택해 주세요.');return;}ops.forEach(o=>{base[o.key]=o.value;});remember();}
- else{const p=await request();if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌어 교체를 중단했습니다.');return;}const latest=local();if(!idle()||keys.some(k=>val(latest,k)!==val(d,k))){choiceStatus('입력 또는 기기 기록이 바뀌어 교체를 중단했습니다.');return;}if(keys.some(k=>val(p.data,k)!==val(cloud,k))){cloud=p.data;choiceStatus('서버가 다시 바뀌었습니다. 확인 후 다시 선택해 주세요.');return;}apply(keys);}show([]);status('충돌 선택 적용 완료');
- }catch(e){choiceStatus('충돌 처리 실패: '+e.message+' — 재시도 전 다시 조회해 기록을 확인해 주세요.');console.error('[Flove Sync conflict]',e);}finally{buttons.forEach((b,i)=>{b.disabled=disabled[i];});busy=false;}setTimeout(cycle,100);
+  buttons.forEach(b=>{b.disabled=true;});choiceStatus('처리 중 — 양쪽 원본 백업 준비…');
+  await new Promise(resolve=>setTimeout(resolve,0));
+  await runSyncFlow(async()=>{
+   if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌어 교체를 중단했습니다.');return;}
+   if(!idle()||keys.some(k=>localStorage.getItem(k)!==val(d,k))){choiceStatus('입력 또는 기기 기록이 바뀌어 교체를 중단했습니다.');return;}
+   baselineStore.assertCurrent();
+   const pending=readMergePending();
+   if(pending&&!pending.record.settled){choiceStatus('병합 저장 결과 미확인 — 수동 교체도 보류합니다');return;}
+   if(pending&&pending.record.ops.some(op=>!keys.includes(op.key))){choiceStatus('병합 대기 항목 전체를 다시 조회해 주세요');return;}
+   backup('conflict-'+mode);
+   choiceStatus(mode==='local'?'처리 중 — 기기 기록을 서버에 저장하고 있습니다…':'처리 중 — 서버 최신 기록을 확인하고 있습니다…');
+   if(mode==='local'){
+    const ops=keys.map(k=>({key:k,expected:val(cloud,k),value:val(d,k)}));ops.forEach(o=>validate(o.key,o.value));
+    const p=await request({protocol:2,ops});
+    if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌었습니다. 서버 반영 여부를 다시 조회해 확인해 주세요.');return;}
+    if(p.result==='conflict'){cloud=p.data;show(p.keys||keys);choiceStatus('서버 기록이 변경됐습니다. 확인 후 다시 선택해 주세요.');return;}
+    await remember(Object.fromEntries(ops.map(o=>[o.key,o.value])),p.data);
+   }else{
+    const p=await request();
+    if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌어 교체를 중단했습니다.');return;}
+    if(p.result!=='success')throw Error('서버 조회 성공 확인 실패');
+    baselineStore.assertCurrent();
+    if(!idle()||keys.some(k=>val(local(),k)!==val(d,k))){choiceStatus('입력 또는 기기 기록이 바뀌어 교체를 중단했습니다.');return;}
+    if(keys.some(k=>val(p.data,k)!==val(cloud,k))){cloud=p.data;choiceStatus('서버가 다시 바뀌었습니다. 확인 후 다시 선택해 주세요.');return;}
+    await apply(keys);
+   }
+   if(stopped||localSaveFailure||generation!==localSaveGeneration){choiceStatus('저장 상태가 바뀌었습니다. 다시 조회해 확인해 주세요.');return;}
+   if(pending)clearMergePending(pending);show([]);status('충돌 선택 적용 완료');
+  });
+ }catch(e){choiceStatus((stopped?'충돌 처리 중단: ':'충돌 처리 실패 — 원본 유지: ')+e.message);console.error('[Flove Sync conflict]',e);}
+ finally{buttons.forEach((b,i)=>{b.disabled=disabled[i];});busy=false;}
+ setTimeout(cycle,100);
 }
 let localSaveFailure=null,localSaveGeneration=0;
 function recoverLocalMemory(fault){
@@ -182,6 +406,7 @@ function storeBatch(values){
   for(const[k]of entries)old.set(k,localStorage.getItem(k));
   for(const[k,v]of entries){attempted.push([k,v]);localStorage.setItem(k,v);}
   for(const[k,v]of entries)if(localStorage.getItem(k)!==v)throw Error('기기 저장 결과 확인 실패: '+k);
+  if(entries.length)localSaveGeneration++;
  }catch(error){
   let uncertain=false;
   for(const[k,v]of [...attempted].reverse()){
@@ -204,20 +429,20 @@ function storeBatch(values){
   throw error;
  }
 }
-function saved(){if(localSaveFailure){status(localSaveFailure.message,true);return;}dirty=false;setTimeout(cycle,100);}
+function saved(){if(localSaveFailure){status(localSaveFailure.message,true);return;}localSaveGeneration++;dirty=false;setTimeout(cycle,100);}
 function resetPlan(){if(!confirm('계획표 기록만 초기화할까요? 다른 과목은 삭제하지 않습니다.'))return;try{backup('before-plan-reset');const old={},keys=Object.keys(local()).filter(planKey);keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{keys.forEach(k=>localStorage.removeItem(k));}catch(e){restore(old);throw e;}refresh(keys);saved();}catch(e){status('초기화 실패: '+e.message,true);}}
 async function boot(){
  const box=document.createElement('section');box.id='flove-sync-v2-panel';Object.assign(box.style,{position:'relative',zIndex:'10000',margin:'12px',padding:'12px',border:'1px solid #cbd5e1',borderRadius:'12px',background:'#fff',color:'#0f172a',fontSize:'13px'});label=document.createElement('div');box.appendChild(label);status('서버 연결 확인 중…');
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;Object.assign(b.style,{margin:'6px',padding:'6px',border:'1px solid #cbd5e1',borderRadius:'6px',color:'#0f172a',background:'#f8fafc'});b.addEventListener('click',fn);return b;};
  box.append(button('다시 조회',()=>cycle(true)),button('양쪽 원본 내려받기',()=>{try{download();}catch(e){alert(e.message);}}));details=document.createElement('div');details.hidden=true;keysEl=document.createElement('pre');keysEl.style.whiteSpace='pre-wrap';details.append(keysEl,button('서버 기록 사용',()=>choose('cloud')),button('이 기기 기록 사용',()=>choose('local')));box.appendChild(details);if(cfg.readOnly&&cfg.hubStatus){hubLinks=document.createElement('nav');hubLinks.setAttribute('aria-label','확인이 필요한 학습 화면');hubLinks.hidden=true;box.appendChild(hubLinks);}document.body.prepend(box);
- try{const raw=sessionStorage.getItem(meta);if(raw!==null){base=JSON.parse(raw);if(!obj(base))throw Error('기준 데이터 손상');}}catch(e){stopped=true;status('기준 데이터 오류 — 자동 저장 중단',true);return;}
+ try{if(cfg.keys.length||cfg.plan){baselineStore=createPersistentBaseline({storage:localStorage,locks:globalThis.navigator&&globalThis.navigator.locks,page:cfg.page,server:cfg.url||endpoint,owns:own,check:validate});base=baselineStore.load();}}catch(e){stopped=true;status('기준 데이터 오류 — 자동 저장 중단: '+e.message,true);return;}
  const track=e=>{if(cfg.plan||!e.target.closest||!e.target.closest('form,#tab-record')||/search|filter|sort/i.test(e.target.id||''))return;dirty=true;};document.addEventListener('input',track,true);document.addEventListener('change',track,true);document.addEventListener('reset',()=>setTimeout(()=>{dirty=false;},0),true);
  try{status('복구본 관리 준비 중…');await loadRecovery();}catch(e){stopped=true;status('복구본 관리 준비 실패 — 자동 동기화 중단: '+e.message,true);return;}
  try{mountRecovery(box);}catch(e){console.warn('[Flove Recovery UI]',e);}
  maintainRecovery();status('서버 연결 확인 중…');
- window.addEventListener('storage',e=>{if(e.key&&own(e.key)&&idle()){try{refresh([e.key]);}catch(err){status('다른 탭 갱신 실패: '+err.message,true);}}});document.addEventListener('visibilitychange',()=>{if(!document.hidden)cycle();});window.addEventListener('online',cycle);setInterval(cycle,10000);setTimeout(cycle,0);
+ window.addEventListener('storage',e=>{if(e.key===null||(e.key&&own(e.key)))localSaveGeneration++;if(baselineStore&&(e.key===null||e.key===baselineStore.key)){stopped=true;status('기준 데이터 변경 — 새로고침 후 동기화 재확인 필요',true);return;}if(e.key&&own(e.key)&&idle()){try{refresh([e.key]);}catch(err){status('다른 탭 갱신 실패: '+err.message,true);}}});document.addEventListener('visibilitychange',()=>{if(!document.hidden)cycle();});window.addEventListener('online',cycle);setInterval(cycle,10000);setTimeout(cycle,0);
 }
-window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:()=>cycle(true),_test:{decide,validate}};
+window.FloveSync={register:a=>{adapter=a;},markSaved:saved,saveLocal:(k,v)=>storeBatch({[k]:v}),saveBatch:storeBatch,validateData:validate,backupCurrent:backup,readArray:(k,fallback=[])=>{const v=localStorage.getItem(k);if(v===null)return fallback;validate(k,v);return JSON.parse(v);},resetPlan,retry:()=>cycle(true),_test:{decide,validate,createPersistentBaseline}};
 window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i.test(String(e.message))){stopped=true;status('앱 데이터 오류 — 자동 동기화 중단: '+e.message,true);}});document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,0));
 })();
 
@@ -309,3 +534,92 @@ window.addEventListener('error',e=>{if(/quota|storage|저장|형식|JSON|parse/i
   script.onerror=()=>console.warn('[Flove Timer UI] Keeping original sync panel.');
   document.head.appendChild(script);
 })();
+
+
+/* Stage 2A: pure, conservative record-set merge. No storage, DOM, or network. */
+(function(root){
+'use strict';
+const keys=new Set(['saegibun_notes_v3','math_review_notes_v3','english_exam_logs_v14','liv_ethic_notes_v11','samun_notes_v1']);
+const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
+const compare=(a,b)=>a<b?-1:a>b?1:0;
+function stable(x,depth=0){
+ if(depth>64)throw Error('NESTING_LIMIT');
+ if(x===null||typeof x==='string'||typeof x==='boolean')return JSON.stringify(x);
+ if(typeof x==='number'&&Number.isFinite(x))return JSON.stringify(x);
+ if(Array.isArray(x))return '['+x.map(y=>stable(y,depth+1)).join(',')+']';
+ if(object(x))return '{'+Object.keys(x).sort(compare).map(k=>JSON.stringify(k)+':'+stable(x[k],depth+1)).join(',')+'}';
+ throw Error('NON_JSON_VALUE');
+}
+function parse(raw){
+ if(typeof raw!=='string')throw Error('MISSING_RECORD_SET');
+ const records=JSON.parse(raw);
+ if(!Array.isArray(records))throw Error('INVALID_RECORD_SET');
+ const map=new Map(),texts=new Map(),ids=[];
+ for(const record of records){
+  if(!object(record)||!has(record,'id'))throw Error('INVALID_RECORD');
+  const id=record.id;
+  if(!((typeof id==='number'&&Number.isSafeInteger(id)&&!Object.is(id,-0))||(typeof id==='string'&&id.length>0&&id.trim()===id)))throw Error('INVALID_ID');
+  const k=String(id);if(map.has(k))throw Error('DUPLICATE_ID');
+  for(const f of ['content','title','originalText','unit','category','importance'])if(has(record,f)&&record[f]!==null&&typeof record[f]!=='string')throw Error('INVALID_FIELD');
+  for(const f of ['vocabs','wrongQuestions','corrections'])if(has(record,f)&&(!Array.isArray(record[f])||record[f].some(x=>!object(x))))throw Error('INVALID_CHILDREN');
+  texts.set(k,stable(record));map.set(k,record);ids.push(k);
+ }
+ return {records,map,texts,ids};
+}
+function fail(code,conflicts=[]){return {ok:false,code,value:null,conflicts};}
+function ordered(selected,b,l,r){
+ const common=b.ids.filter(id=>selected.has(id)&&l.map.has(id)&&r.map.has(id));
+ const old=new Set(common),project=ids=>ids.filter(id=>old.has(id));
+ const bo=common,lo=project(l.ids),ro=project(r.ids),same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+ const lc=!same(lo,bo),rc=!same(ro,bo);
+ if(lc&&rc&&!same(lo,ro))return null;
+ const skeleton=lc?lo:rc?ro:bo;
+ const edges=new Map([...selected.keys()].map(id=>[id,new Set()])),degree=new Map([...selected.keys()].map(id=>[id,0]));
+ function edge(a,z){if(a===z||edges.get(a).has(z))return;edges.get(a).add(z);degree.set(z,degree.get(z)+1);}
+ for(let i=1;i<skeleton.length;i++)edge(skeleton[i-1],skeleton[i]);
+ for(const list of [l.ids,r.ids]){
+  const ids=list.filter(id=>selected.has(id));
+  for(let i=1;i<ids.length;i++)if(!b.map.has(ids[i-1])||!b.map.has(ids[i]))edge(ids[i-1],ids[i]);
+ }
+ const heap=[];
+ function push(x){let i=heap.length;heap.push(x);while(i>0){const p=(i-1)>>1;if(compare(heap[p],x)<=0)break;heap[i]=heap[p];i=p;}heap[i]=x;}
+ function pop(){const first=heap[0],last=heap.pop();if(heap.length){let i=0;while(2*i+1<heap.length){let child=2*i+1;if(child+1<heap.length&&compare(heap[child+1],heap[child])<0)child++;if(compare(last,heap[child])<=0)break;heap[i]=heap[child];i=child;}heap[i]=last;}return first;}
+ for(const[id,n]of degree)if(n===0)push(id);
+ const result=[];
+ while(heap.length){const id=pop();result.push(selected.get(id));for(const next of edges.get(id)){const n=degree.get(next)-1;degree.set(next,n);if(n===0)push(next);}}
+ return result.length===selected.size?result:null;
+}
+function mergeSerialized(input){
+ try{
+  if(!object(input)||typeof input.known!=='boolean'||!has(input,'local')||!has(input,'remote')||(input.known&&!has(input,'base')))return fail('INVALID_ARGUMENT');
+  if(!keys.has(input.key))return fail('UNSUPPORTED_KEY');
+  const l=parse(input.local),r=parse(input.remote);
+  const b=input.known?(input.base===null?parse('[]'):parse(input.base)):null;
+  if(stable(l.records)===stable(r.records))return {ok:true,code:'EQUAL',value:stable(l.records),conflicts:[],stats:{records:l.records.length,addedToLocal:0,addedToRemote:0}};
+  if(!b)return fail('MISSING_BASELINE');
+  const ids=[...new Set([...b.ids,...l.ids,...r.ids])].sort(compare),selected=new Map(),conflicts=[];
+  for(const id of ids){
+   const bv=b.map.get(id),lv=l.map.get(id),rv=r.map.get(id),variants=[bv,lv,rv].filter(x=>x!==undefined);
+   if(variants.some(x=>typeof x.id!==typeof variants[0].id)){conflicts.push({id,reason:'ID_TYPE_MISMATCH'});continue;}
+   if(bv!==undefined&&(lv===undefined)!==(rv===undefined)){conflicts.push({id,reason:'DELETION_REQUIRES_REVIEW'});continue;}
+   if(lv===undefined&&rv===undefined)continue;
+   if(lv===undefined){selected.set(id,rv);continue;}
+   if(rv===undefined){selected.set(id,lv);continue;}
+   const bt=b.texts.get(id),lt=l.texts.get(id),rt=r.texts.get(id);
+   if(lt===rt)selected.set(id,lv);
+   else if(bv!==undefined&&lt===bt)selected.set(id,rv);
+   else if(bv!==undefined&&rt===bt)selected.set(id,lv);
+   else conflicts.push({id,reason:bv===undefined?'NEW_ID_COLLISION':'CONCURRENT_EDIT'});
+  }
+  if(conflicts.length)return fail('REVIEW_REQUIRED',conflicts);
+  const records=ordered(selected,b,l,r);
+  if(records===null)return fail('ORDER_CONFLICT',[{id:null,reason:'INCOMPATIBLE_ORDER'}]);
+  return {ok:true,code:'MERGED',value:stable(records),conflicts:[],stats:{records:records.length,addedToLocal:records.filter(x=>!l.map.has(String(x.id))).length,addedToRemote:records.filter(x=>!r.map.has(String(x.id))).length}};
+ }catch(error){return fail('INVALID_DATA',[{id:null,reason:error instanceof SyntaxError?'INVALID_JSON':String(error&&error.message||error)}]);}
+}
+const api=Object.freeze({version:1,mergeSerialized});
+if(typeof module==='object'&&module.exports)module.exports=api;
+else root.FloveConservativeMerge=api;
+})(typeof globalThis==='object'?globalThis:this);
+
