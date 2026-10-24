@@ -1,0 +1,59 @@
+name: Apply reviewed Stage-1 revision engine
+on:
+  push:
+    branches: [fix/sync-stage1-revision-observation]
+    paths: [.github/workflows/apply-sync-stage1-revision.yml]
+permissions:
+  contents: write
+concurrency:
+  group: apply-sync-stage1-revision
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'flove-tree/csat-suite' && github.ref == 'refs/heads/fix/sync-stage1-revision-observation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Verify the exact reviewed inputs and apply only the engine patch
+        shell: bash
+        env:
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RUN_SHA"
+          test "$(git rev-parse HEAD^)" = "56e47d68a65362df6433edb081cb2e82581cb272"
+          check_blob() { test "$(git hash-object "$1")" = "$2"; }
+          check_blob sync-v2.js c38b2bf72b24a0d84a30fa53b6aeda1d92f55f6c
+          check_blob tools/sync-stage1/revision.patch bd8bdb32282b1c9f2a53cf94a58e6d6bc7ea39e1
+          check_blob tools/sync-stage1/verify_and_apply.py 21f7e09d6858009aac7bf933441c0859f30ee64c
+          check_blob tools/sync-stage1/revision.test.cjs 5e97df4cc2ef0d7263d22319bb5ec7cf37e91319
+          check_blob tools/sync-stage1/reproducer.test.py b4e06068c4dc2c90368aaa468179dcd463ef0539
+          python3 tools/sync-stage1/verify_and_apply.py --apply
+          echo "36d80b9108cf345e89486195d85e8b28ef2a869fc23277aade4f53311aca17e7  sync-v2.js" | sha256sum --check --strict
+      - name: Run the safety and fake-server tests on the integrated engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check sync-v2.js
+          python3 tools/sync-stage1/reproducer.test.py
+          node tools/sync-stage1/revision.test.cjs
+      - name: Commit only sync-v2.js to the review branch after tests pass
+        shell: bash
+        env:
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only)" = "sync-v2.js"
+          test -z "$(git diff --cached --name-only)"
+          remote_sha=$(git ls-remote origin refs/heads/fix/sync-stage1-revision-observation | cut -f1)
+          test "$remote_sha" = "$RUN_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- sync-v2.js
+          test "$(git diff --cached --name-only)" = "sync-v2.js"
+          git commit -m "Observe validated server revisions without claiming data application"
+          git push origin HEAD:refs/heads/fix/sync-stage1-revision-observation
