@@ -926,6 +926,9 @@
         document.addEventListener("DOMContentLoaded", function() {
             loadData();
             generatePlanData();
+            // Include planned checkboxes in the first confirmed server snapshot.
+            const taskKeys = Object.values(planData).flatMap(day => day.tasks.filter(task => !task.isInfo).map(task => task.id));
+            window.FLOVE_SYNC_CONFIG.keys = [...new Set([...window.FLOVE_SYNC_CONFIG.keys, ...taskKeys])];
             jumpToToday();
             renderDateList();
             restoreCheckStates();
@@ -934,8 +937,16 @@
             updatePomoUI(); 
             
             const savedPreset = localStorage.getItem('flove-active-preset') || 'clover';
-            if (savedPreset === 'custom') { applyCustomHex(localStorage.getItem('flove-custom-hex') || '#22c55e'); } 
-            else { selectThemePreset(savedPreset); }
+            // Initial display must not create a saved preference before synchronization.
+            if (savedPreset === 'custom') {
+                const hex = localStorage.getItem('flove-custom-hex') || '#22c55e';
+                const picker = document.getElementById('theme-color-picker');
+                if (picker) picker.value = hex;
+                applyThemeStyles(hex, '#f8fafc', false, 'none');
+            } else {
+                const theme = themePresets[savedPreset];
+                if (theme) applyThemeStyles(theme.hex, theme.bg, theme.isDark, theme.pattern);
+            }
         });
     
 // Flove V2 screen adapter
