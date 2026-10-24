@@ -1,0 +1,26 @@
+--- a/sync-v2.js
++++ b/sync-v2.js
+@@ -168,7 +168,22 @@
+ function backup(reason){const r=snapshot(reason);try{requireRecovery().save(r);recoveryNotice='';return r;}finally{recoveryRender();}}
+ function download(){const u=URL.createObjectURL(new Blob([JSON.stringify(snapshot('download'),null,2)],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download='Flove_동기화복구_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+ function show(keys){conflicts=keys;if(!details)return;details.hidden=!keys.length;keysEl.textContent=keys.join('\n');if(keys.length)status('충돌 '+keys.length+'개 — 자동 덮어쓰기 중단',true);}
+-async function request(body){const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);try{const opt={cache:'no-store',signal:c.signal};if(body){opt.method='POST';opt.headers={'Content-Type':'text/plain;charset=UTF-8'};opt.body=JSON.stringify(body);}const r=await fetch(cfg.url||endpoint,opt);if(!r.ok)throw Error('HTTP '+r.status);const p=await r.json();if(!obj(p)||p.protocol!==2||!['success','conflict'].includes(p.result)||!obj(p.data))throw Error(p.message||'서버 V2 응답 오류');for(const[k,v]of Object.entries(p.data))if(own(k))validate(k,v);return p;}finally{clearTimeout(timer);}}
++/* Server revision observation: session-local; never an applied-data marker. */
++function createServerRevisionObserver(){
++ let highest=null;
++ function observe(response){
++  if(!has(response,'revision'))return {status:'missing',observed:highest};
++  const revision=response.revision;
++  if(!Number.isSafeInteger(revision)||revision<0||Object.is(revision,-0))throw Error('서버 revision 형식 오류 — 응답 적용 중단');
++  if(highest!==null&&revision<highest)throw Error('이전 서버 revision 응답 — 응답 적용 중단');
++  const status=revision===highest?'same':'advanced';
++  highest=revision;return {status,observed:highest};
++ }
++ return {observe,snapshot:()=>({observed:highest})};
++}
++const serverRevisionObserver=createServerRevisionObserver();
++/* Missing revision preserves legacy protocol-2 handling; no version is inferred. */
++async function request(body){const c=new AbortController(),timer=setTimeout(()=>c.abort(),45000);try{const opt={cache:'no-store',signal:c.signal};if(body){opt.method='POST';opt.headers={'Content-Type':'text/plain;charset=UTF-8'};opt.body=JSON.stringify(body);}const r=await fetch(cfg.url||endpoint,opt);if(!r.ok)throw Error('HTTP '+r.status);const p=await r.json();if(!obj(p)||p.protocol!==2||!['success','conflict'].includes(p.result)||!obj(p.data))throw Error(p.message||'서버 V2 응답 오류');for(const[k,v]of Object.entries(p.data))if(own(k))validate(k,v);serverRevisionObserver.observe(p);return p;}finally{clearTimeout(timer);}}
+ function refresh(keys){if(adapter.refresh)adapter.refresh(keys);}
+ function restore(old){for(const k of Object.keys(old)){try{if(old[k]===null)localStorage.removeItem(k);else localStorage.setItem(k,old[k]);}catch(_){stopped=true;}}}
+ async function apply(keys){if(!keys.length)return;backup('before-cloud-apply');const old={};keys.forEach(k=>{old[k]=localStorage.getItem(k);});try{for(const k of keys){const v=val(cloud,k);validate(k,v);if(v===null&&/notes_v\d+$|exam_logs_v\d+$/.test(k))localStorage.setItem(k,'[]');else if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);}refresh(keys);}catch(e){restore(old);try{refresh(keys);}catch(_){stopped=true;}throw e;}await remember(Object.fromEntries(keys.map(k=>[k,val(cloud,k)])),cloud);}
