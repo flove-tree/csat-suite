@@ -14,6 +14,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 
 def build(raw):
+    if hashlib.sha256(raw).hexdigest() == TARGET:
+        return raw
     blob = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
     if blob != BASE:
         raise RuntimeError("Source blob changed; refusing to apply the checkpoint")
@@ -43,6 +45,9 @@ def main():
         sys.stdout.buffer.write(result)
         return
     if args.apply:
+        if raw == result:
+            print("ALREADY APPLIED; local engine unchanged")
+            return
         pending = None
         try:
             with tempfile.NamedTemporaryFile(dir=source.parent, delete=False) as handle:
