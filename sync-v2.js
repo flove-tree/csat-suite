@@ -277,7 +277,7 @@ async function tryAutoMerge(keys,d,generation){
  const ops=[];
  for(const key of keys){
   const result=mergeAPI().mergeSerialized({key,known:has(base,key),base:val(base,key),local:val(d,key),remote:val(cloud,key)});
-  if(!result.ok)return false;
+  if(!result.ok)continue;
   ops.push({key,expected:val(cloud,key),value:result.value,local:val(d,key),baseKnown:has(base,key),base:val(base,key)});
  }
  if(!ops.length)return false;
@@ -319,7 +319,16 @@ async function cycle(force=false){
   if(cfg.hubStatus){const action=hubActions(pull,ops,bad,idle());if(action.applyKeys.length)await apply(action.applyKeys);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;show([]);renderHub(action.pending);return;}
   if(pull.length&&idle())await apply(pull);if(stopped||localSaveFailure||generation!==localSaveGeneration)return;show([]);status(bad.length||ops.length?'허브: 기록 차이 있음 — 해당 과목에서 확인':'허브 서버 조회 완료');return;
  }
- if(bad.length){if(await tryAutoMerge(bad,d,generation))return;show(bad);return;}show([]);if(pull.length){if(!idle()){status('다른 기기 변경 대기 — 입력을 저장하거나 취소하세요',true);return;}await apply(pull);}
+ if(bad.length){
+  if(await tryAutoMerge(bad,d,generation)){
+   if(stopped||localSaveFailure||generation!==localSaveGeneration||!idle()||readMergePending())return;
+   const current=local(),remaining=bad.filter(k=>decide(has(base,k),val(base,k),val(current,k),val(cloud,k))==='conflict');
+   if(remaining.length)show(remaining);
+   return;
+  }
+  show(bad);return;
+ }
+ show([]);if(pull.length){if(!idle()){status('다른 기기 변경 대기 — 입력을 저장하거나 취소하세요',true);return;}await apply(pull);}
  if(stopped||localSaveFailure||generation!==localSaveGeneration)return;
  if(ops.some(o=>localStorage.getItem(o.key)!==o.value))return;
  if(ops.length){
@@ -622,4 +631,5 @@ const api=Object.freeze({version:1,mergeSerialized});
 if(typeof module==='object'&&module.exports)module.exports=api;
 else root.FloveConservativeMerge=api;
 })(typeof globalThis==='object'?globalThis:this);
+
 
