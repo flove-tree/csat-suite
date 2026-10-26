@@ -46,8 +46,45 @@ def version_asset(match):
     url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
     return match.group(1) + match.group(2) + url + match.group(4)
 
+def integrate_wishes(text):
+    card = '<a id="wish-shortcut" href="soweon.html" class="wish-shortcut p-3.5 rounded-2xl min-w-[140px] text-center shadow-md" aria-label="소원 빌러가기, 별빛 소원 페이지로 이동">\n' + \
+           '  <span class="wish-eyebrow">잠깐, 나를 위한 별빛</span>\n' + \
+           '  <span class="wish-title"><span aria-hidden="true">✦</span> 소원 빌러가기 <span class="wish-arrow" aria-hidden="true">→</span></span>\n' + \
+           '  <span class="wish-caption">오늘의 마음을 별에 담아</span>\n</a>'
+    style = """<style id="wish-shortcut-style">
+#wish-shortcut{display:flex;flex-direction:column;justify-content:center;gap:3px;flex-shrink:0;min-height:81px;text-decoration:none;color:#ede9fe;border:1px solid rgba(167,139,250,.35);background:radial-gradient(ellipse at 0 0,rgba(139,92,246,.18),transparent 75%),linear-gradient(135deg,#1e293b,#24253e);transition:background .2s,border-color .2s,box-shadow .2s}
+#wish-shortcut .wish-eyebrow{display:block;font-size:10px;line-height:1.4;font-weight:600;color:#c4b5fd}
+#wish-shortcut .wish-title{display:block;white-space:nowrap;font-size:14px;line-height:1.5;font-weight:800}
+#wish-shortcut .wish-title>span:first-child{color:#ddd6fe}
+#wish-shortcut .wish-arrow{display:inline-block;margin-left:3px;color:#c4b5fd;transition:transform .2s}
+#wish-shortcut .wish-caption{display:block;font-size:10px;line-height:1.4;color:#cbd5e1}
+#wish-shortcut:hover{border-color:rgba(196,181,253,.75);box-shadow:0 0 22px rgba(139,92,246,.13)}
+#wish-shortcut:hover .wish-arrow{transform:translateX(2px)}
+#wish-shortcut:focus-visible{outline:2px solid #ddd6fe;outline-offset:4px}
+@media(prefers-reduced-motion:reduce){#wish-shortcut,#wish-shortcut .wish-arrow{transition:none}#wish-shortcut:hover .wish-arrow{transform:none}}
+</style>"""
+    replacements = [
+        (r'<div\b[^>]*>\s*<p\b[^>]*>9월 평가원</p>\s*<p\b[^>]*\bid="dday-9pyung"[^>]*>[^<]*</p>\s*</div>', card),
+        (r'^\s*const TARGET_9PYUNG = new Date\(2026, 8, 2\);[^\n]*\n', ''),
+        (r"^\s*document\.getElementById\('dday-9pyung'\)\.textContent = calculateDDay\(TARGET_9PYUNG\);[^\n]*\n", ''),
+        (r'</head\s*>', style + '\n</head>'),
+    ]
+    for pattern, replacement in replacements:
+        text, count = re.subn(pattern, lambda m, value=replacement: value, text, flags=re.M)
+        if count != 1:
+            raise ValueError("Wish shortcut integration expected one match: " + pattern)
+    if 'dday-9pyung' in text or 'TARGET_9PYUNG' in text:
+        raise ValueError("Stale September D-Day references")
+    if text.count('id="wish-shortcut"') != 1 or 'id="dday-suneung"' not in text:
+        raise ValueError("Invalid wish / CSAT widgets")
+    return text
+
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
+    if page == out / "index.html":
+        if not (out / "soweon.html").is_file():
+            raise ValueError("Missing wish page")
+        text = integrate_wishes(text)
     if page == out / "samun.html":
         if not (out / "samun-note-sorting.js").is_file():
             raise ValueError("Missing Samun sorting module")
