@@ -105,6 +105,29 @@ def integrate_wish_home(text):
         raise ValueError("Wish page head changed")
     return text
 
+def integrate_wish_sync(text):
+    modules = ('wish-sync-core.js', 'wish-sync-bridge.js', 'wish-sync-attach.js')
+    for module in modules:
+        if not (out / module).is_file():
+            raise ValueError('Missing wish sync module: ' + module)
+    if 'id="wish-sync-config"' in text:
+        raise ValueError('Duplicate wish sync configuration')
+    engine = (root / 'sync-v2.js').read_text(encoding='utf-8')
+    endpoints = re.findall(r"\bconst\s+endpoint\s*=\s*(['\"])(https://script\.google\.com/macros/s/[^'\"\s]+/exec)\1\s*;", engine)
+    if len(endpoints) != 1:
+        raise ValueError('Expected one existing Apps Script endpoint')
+    endpoint = endpoints[0][1]
+    parts = urlsplit(endpoint)
+    if parts.scheme != 'https' or parts.netloc != 'script.google.com' or parts.query or parts.fragment:
+        raise ValueError('Invalid existing Apps Script endpoint')
+    config = json.dumps({'enabled': True, 'endpoint': endpoint}, separators=(',', ':')).replace('<', '\\u003c')
+    tags = '<script id="wish-sync-config">window.FLOVE_WISH_SYNC_CONFIG=' + config + ';</script>\n'
+    tags += '\n'.join('<script src="' + module + '"></script>' for module in modules) + '\n'
+    text, count = re.subn(r'</body\s*>(?=\s*</html\s*>\s*\Z)', lambda m: tags + m.group(0), text, flags=re.I)
+    if count != 1:
+        raise ValueError('Wish sync loaders were not added')
+    return text
+
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
     if page == out / "index.html":
@@ -115,6 +138,7 @@ for page in out.rglob("*.html"):
         if not (out / "index.html").is_file():
             raise ValueError("Missing hub page")
         text = integrate_wish_home(text)
+        text = integrate_wish_sync(text)
     if page == out / "samun.html":
         if not (out / "samun-note-sorting.js").is_file():
             raise ValueError("Missing Samun sorting module")
