@@ -79,12 +79,42 @@ def integrate_wishes(text):
         raise ValueError("Invalid wish / CSAT widgets")
     return text
 
+def integrate_wish_home(text):
+    marker = '<p id="cheer"></p>'
+    if text.count(marker) != 1 or 'id="wish-home-link"' in text:
+        raise ValueError("Wish completion panel changed")
+    link = ('<div id="wish-home-actions"><a id="wish-home-link" href="index.html" '
+            'aria-label="허브로 돌아가기">'
+            '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" '
+            'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" '
+            'stroke-linejoin="round" aria-hidden="true" focusable="false">'
+            '<path d="M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9"/>'
+            '</svg></a></div>')
+    text = text.replace(marker, marker + link, 1)
+    style = """<style id="wish-home-style">
+#wish-home-actions{margin:24px 0 0;text-align:center}
+#wish-home-link{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;padding:0;border:1px solid #c6b6ec40;border-radius:50%;background:linear-gradient(135deg,#b39bdb18,#7997ce0d);color:#ddd3f2;text-decoration:none;box-shadow:0 4px 24px #05061930;transition:background .2s,border-color .2s,box-shadow .2s}
+#wish-home-link svg{display:block;flex-shrink:0}
+#wish-home-link:hover{background:linear-gradient(135deg,#b39bdb2b,#7997ce19);border-color:#d2bff087;box-shadow:0 0 22px #ab8add15}
+#wish-home-link:focus-visible{outline:2px solid #cebeef;outline-offset:5px}
+#done #edit{margin-top:12px}
+@media(prefers-reduced-motion:reduce){#wish-home-link{transition:none}}
+</style>"""
+    text, count = re.subn(r'</head\s*>', lambda m: style + m.group(0), text)
+    if count != 1:
+        raise ValueError("Wish page head changed")
+    return text
+
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
     if page == out / "index.html":
         if not (out / "soweon.html").is_file():
             raise ValueError("Missing wish page")
         text = integrate_wishes(text)
+    if page == out / "soweon.html":
+        if not (out / "index.html").is_file():
+            raise ValueError("Missing hub page")
+        text = integrate_wish_home(text)
     if page == out / "samun.html":
         if not (out / "samun-note-sorting.js").is_file():
             raise ValueError("Missing Samun sorting module")
