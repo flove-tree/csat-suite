@@ -37,3 +37,58 @@ function mount(){
 }
 if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),10000);}
 })();
+
+/* Reuse the original vocabulary form without duplicating IDs or save logic. */
+(() => {
+  'use strict';
+  const cfg = window.FLOVE_SYNC_CONFIG || {};
+  if (cfg.page !== 'eng' || cfg.readOnly) return;
+
+  function mountVocabQuickAdd() {
+    const recordTab = document.getElementById('tab-record');
+    const vocabTab = document.getElementById('tab-vocab');
+    const list = document.getElementById('vocab-input-list');
+    if (!recordTab || !vocabTab || !list) return false;
+    if (vocabTab.dataset.quickAddMounted === 'true') return true;
+    const panel = Array.from(recordTab.children).find(node => node.contains(list));
+    if (!panel) return false;
+    const heading = panel.querySelector('h2');
+    const headingText = heading && Array.from(heading.childNodes).find(node => node.nodeType === 3 && node.textContent.trim());
+    const originalTitle = headingText ? headingText.textContent : '';
+    const header = panel.firstElementChild;
+    const originalHeaderClass = header ? header.className : '';
+    const home = document.createComment('Original shared vocabulary input position');
+    panel.before(home);
+    const hint = document.createElement('p');
+    hint.className = 'text-xs text-slate-500 mb-4 leading-relaxed';
+    hint.textContent = '기록하기 탭과 같은 단어 입력창입니다. 입력 중인 내용은 탭을 옮겨도 유지됩니다. 기존 단어만 저장하기 버튼으로 저장하세요.';
+    hint.hidden = true;
+    panel.insertBefore(hint, list);
+
+    function placePanel() {
+      const inVocab = !vocabTab.hidden && !vocabTab.classList.contains('hidden');
+      if (inVocab) {
+        if (panel.parentElement !== vocabTab) vocabTab.prepend(panel);
+      } else if (panel.parentElement !== recordTab) {
+        home.after(panel);
+      }
+      hint.hidden = !inVocab;
+      if (headingText) headingText.textContent = inVocab ? ' 단어 바로 추가' : originalTitle;
+      if (header) header.className = inVocab ? originalHeaderClass + ' flex-wrap gap-3' : originalHeaderClass;
+    }
+
+    const observer = new MutationObserver(placePanel);
+    observer.observe(vocabTab, { attributes: true, attributeFilter: ['class', 'hidden'] });
+    vocabTab.dataset.quickAddMounted = 'true';
+    placePanel();
+    return true;
+  }
+
+  if (!mountVocabQuickAdd()) {
+    const observer = new MutationObserver(() => {
+      if (mountVocabQuickAdd()) observer.disconnect();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 10000);
+  }
+})();
