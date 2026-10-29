@@ -139,8 +139,10 @@ function mountKeyboard(){
   }
   if(e.key==='.'||(!e.shiftKey&&e.code==='Period')||e.code==='NumpadDecimal'){draft.part='sec';render();return;}
   if(e.key==='Enter'){commit();return;}
-  if(/^\d$/.test(e.key)){
-   const part=draft.part,next=draft[part]+e.key,limit=part==='min'?180:59,maxLength=part==='min'?3:2;
+  const numpadDigit=/^Numpad([0-9])$/.exec(e.code||'');
+  const digit=numpadDigit?numpadDigit[1]:(/^[0-9]$/.test(e.key)?e.key:null);
+  if(digit!==null){
+   const part=draft.part,next=draft[part]+digit,limit=part==='min'?180:59,maxLength=part==='min'?3:2;
    if(next.length>maxLength||Number(next)>limit){render(part==='min'?'분은 0~180까지 입력할 수 있어요.':'초는 0~59까지 입력할 수 있어요.');return;}
    draft[part]=next;render();if(part==='sec'&&next.length===2)commit();
   }
