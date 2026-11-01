@@ -77,8 +77,7 @@ header{text-align:center;margin-bottom:24px;}.badge{display:inline-block;backgro
     setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => {
       controller.abort();
       if (cancelled || sequence !== saveNavigationSequence || editingId !== null || document.hidden || document.activeElement !== active || !input?.isConnected) return;
-      input.focus({preventScroll:true});
-      if (document.activeElement === input) window.scrollTo({top:0, behavior:'instant'});
+      window.scrollTo({top:0, behavior:'instant'});
     })), 0);
   };
 })();
