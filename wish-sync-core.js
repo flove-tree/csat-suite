@@ -95,10 +95,12 @@ function create(options){
   if(storage.getItem(metaKey)!==raw)throw Error('Sync metadata write not confirmed');
   return raw;
  }
- function backup(local,remote){
+ function backup(local,remote,extra={}){
   const raw=storage.getItem(backupKey),history=raw===null?[]:JSON.parse(raw);
   if(!Array.isArray(history))throw Error('Invalid recovery archive');
-  const next=JSON.stringify([...history.slice(-4),{local,remote}]);
+  const protectedRows=history.filter(x=>object(x)&&x.reason==='pending-rebase');
+  const recent=history.filter(x=>!object(x)||x.reason!=='pending-rebase').slice(-4);
+  const next=JSON.stringify([...protectedRows,...recent,{local,remote,...extra}]);
   storage.setItem(backupKey,next);
   if(storage.getItem(backupKey)!==next)throw Error('Recovery write not confirmed');
  }
@@ -132,15 +134,26 @@ function create(options){
   const p=s.meta.pending;
   const result=await transport.compareAndSet(p.expected,p.value);
   if(stopped||token!==epoch)return emit('stopped');
-  if(result.result==='conflict'){
-   return exclusive('wish-daily-save',()=>{
-    if(stopped||token!==epoch)return emit('stopped');
-    if(storage.getItem(metaKey)===s.raw)save({...s.meta,pending:null},s.raw);
-    return emit('retry');
-   });
-  }
+  if(result.result==='conflict')return emit('retry');
   if(result.result!=='success'||result.value!==p.value)throw Error('Server wish write not confirmed');
   return settle(s,p.value,p.local,token);
+ }
+ async function recoverPending(s,remote,token){
+  const p=s.meta.pending;
+  if(remote===null&&parse(p.expected).length)return emit('remote-missing');
+  const serverMerge=merge(p.expected,p.value,remote,true);
+  if(!serverMerge.ok)return emit('conflict',{dates:serverMerge.conflicts});
+  const result=merge(p.local,s.local,serverMerge.value,true);
+  if(!result.ok)return emit('conflict',{dates:result.conflicts});
+  const staged=await exclusive('wish-daily-save',()=>{
+   if(stopped||token!==epoch||isBusy()||storage.getItem(KEY)!==s.local||storage.getItem(metaKey)!==s.raw)return null;
+   backup(s.local,remote,{reason:'pending-rebase',createdAt:new Date().toISOString(),meta:s.meta});
+   const pending={expected:remote,value:result.value,local:s.local};
+   const meta={...s.meta,pending};return {local:s.local,meta,raw:save(meta,s.raw)};
+  });
+  if(!staged)return emit(stopped||token!==epoch?'stopped':'stale');
+  if(normalize(result.value)===normalize(remote))return settle(staged,remote,staged.local,token);
+  return send(staged,token);
  }
  async function syncOnce(){
   if(stopped)return emit('stopped');
@@ -159,7 +172,7 @@ function create(options){
     const p=s.meta.pending;
     if(remote===p.value)return settle(s,p.value,p.local,token);
     if(remote===p.expected)return send(s,token);
-    return emit('uncertain',{reason:'Pending write and server differ; originals retained'});
+    return recoverPending(s,remote,token);
    }
    if(remote===null&&s.meta.known&&parse(s.local).length)return emit('remote-missing');
    const result=merge(s.meta.base,s.local,remote,s.meta.known);
