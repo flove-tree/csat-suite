@@ -143,12 +143,21 @@ def integrate_version_tools(text):
         raise ValueError('Version tools loader was not added')
     return text
 
+def remove_hub_filename_badges(text):
+    for name in ('korean', 'math', 'eng', 'sang', 'samun', 'plan', 'timer'):
+        badge = '<span class="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">' + name + '.html</span>'
+        if text.count(badge) != 1:
+            raise ValueError('Expected one hub filename badge: ' + name)
+        text = text.replace(badge, '', 1)
+    return text
+
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
     if page == out / "index.html":
         if not (out / "soweon.html").is_file():
             raise ValueError("Missing wish page")
         text = integrate_wishes(text)
+        text = remove_hub_filename_badges(text)
     if page == out / "soweon.html":
         if not (out / "index.html").is_file():
             raise ValueError("Missing hub page")
