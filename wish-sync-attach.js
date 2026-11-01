@@ -98,3 +98,44 @@ try{
  console.error('[Wish sync unavailable]',error);
 }
 })();
+
+/* New manual wishes only. Existing/imported coordinates are never migrated. */
+(() => {
+'use strict';
+function choosePosition(identity,rows){
+ let seed=2166136261;
+ for(const c of identity){seed^=c.codePointAt(0);seed=Math.imul(seed,16777619)>>>0;}
+ const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+ const occupied=rows.filter(w=>Number.isFinite(w.px)&&Number.isFinite(w.py));
+ let best={px:.12,py:.2},bestScore=-Infinity;
+ for(let i=0;i<160;i++){
+  const px=.06+.88*random(),py=.17+.66*random();
+  if(px>.24&&px<.76&&py>.24&&py<.78)continue;
+  let distance=1000;
+  for(const w of occupied)distance=Math.min(distance,Math.hypot((px-w.px)*400,(py-w.py)*800));
+  const score=Math.min(distance,90)*(.85+.3*random());
+  if(score>bestScore){bestScore=score;best={px,py};}
+ }
+ return best;
+}
+if(typeof module==='object'&&module.exports){module.exports={choosePosition};return;}
+if(window.FloveWishPlacement)return;
+const originalNorm=norm,originalCommit=commit;
+let context=null;
+const identity=w=>String(w.id)+'|'+w.date;
+norm=function(w,i=0){
+ if(context&&!context.known.has(identity(w))&&(!Number.isFinite(w.px)||!Number.isFinite(w.py))){
+  Object.assign(w,choosePosition(identity(w),context.rows));
+ }
+ return originalNorm(w,i);
+};
+commit=function(change){
+ const manual=phase==='saving'&&!editing&&((typeof pastBusy!=='undefined'&&pastBusy)||!!$('wish').value.trim());
+ if(!manual)return originalCommit(change);
+ return originalCommit(a=>{
+  const previous=context;context={rows:a,known:new Set(a.map(identity))};
+  try{return change(a);}finally{context=previous;}
+ });
+};
+window.FloveWishPlacement=Object.freeze({version:1});
+})();
