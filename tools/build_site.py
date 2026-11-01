@@ -128,6 +128,21 @@ def integrate_wish_sync(text):
         raise ValueError('Wish sync loaders were not added')
     return text
 
+def integrate_version_tools(text):
+    if not (out / 'wish-version-tools.js').is_file():
+        raise ValueError('Missing wish version / conflict tools')
+    if 'name="flove-build"' in text or 'id="wish-version-tools-loader"' in text:
+        raise ValueError('Duplicate version tools')
+    text, count = re.subn(r'</head\s*>', lambda m: '<meta name="flove-build" content="' + sha + '">\n' + m.group(0), text, flags=re.I)
+    if count != 1:
+        raise ValueError('Version metadata was not added')
+    for name in ('soweon.html', 'index.html'):
+        text = text.replace('href="' + name + '"', 'href="' + name + '?flove_build=' + sha[:12] + '"')
+    text, count = re.subn(r'</body\s*>(?=\s*</html\s*>\s*\Z)', lambda m: '<script id="wish-version-tools-loader" src="wish-version-tools.js"></script>\n' + m.group(0), text, flags=re.I)
+    if count != 1:
+        raise ValueError('Version tools loader was not added')
+    return text
+
 for page in out.rglob("*.html"):
     text = page.read_text(encoding="utf-8")
     if page == out / "index.html":
@@ -152,6 +167,8 @@ for page in out.rglob("*.html"):
             text, count = re.subn(r"</body\s*>(?=\s*</html\s*>\s*\Z)", lambda m: '<script id="samun-json-backup-loader" src="samun-json-backup.js"></script>\n' + m.group(0), text, count=1, flags=re.I)
             if count != 1:
                 raise ValueError("Samun JSON backup loader was not added")
+    if page in (out / 'index.html', out / 'soweon.html'):
+        text = integrate_version_tools(text)
     text = asset_pattern.sub(version_asset, text)
     if page == out / "index.html":
         marker = ('<p id="flove-site-update" title="현재 HTML 배포본의 생성 시각입니다. 배포 완료 시각이나 새로고침 시각이 아닙니다." '
