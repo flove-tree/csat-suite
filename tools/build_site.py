@@ -106,7 +106,7 @@ def integrate_wish_home(text):
     return text
 
 def integrate_wish_sync(text):
-    modules = ('wish-sync-core.js', 'wish-sync-bridge.js', 'wish-sync-attach.js')
+    modules = ('wish-sync-core.js', 'wish-sync-bridge.js', 'wish-sync-attach.js', 'wish-cinema.js')
     for module in modules:
         if not (out / module).is_file():
             raise ValueError('Missing wish sync module: ' + module)
