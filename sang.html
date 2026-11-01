@@ -60,5 +60,28 @@ header{text-align:center;margin-bottom:24px;}.badge{display:inline-block;backgro
 <script src="sang-word-engine.js?v=1"></script>
 <script src="sang-unit-grouping.js?v=1"></script>
 <script src="sang-live-duplicates.js?v=1"></script>
+<script>
+(() => {
+  const previousNavigate = navigateAfterSave;
+  navigateAfterSave = function(editedId) {
+    if (editedId !== null) { previousNavigate(editedId); return; }
+    const sequence = ++saveNavigationSequence;
+    const input = document.getElementById('thinker');
+    const active = document.activeElement;
+    const controller = new AbortController();
+    let cancelled = false;
+    const cancel = () => { cancelled = true; controller.abort(); };
+    for (const type of ['pointerdown', 'keydown', 'input', 'focusin', 'wheel']) {
+      document.addEventListener(type, cancel, {capture:true, signal:controller.signal});
+    }
+    setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+      controller.abort();
+      if (cancelled || sequence !== saveNavigationSequence || editingId !== null || document.hidden || document.activeElement !== active || !input?.isConnected) return;
+      input.focus({preventScroll:true});
+      if (document.activeElement === input) window.scrollTo({top:0, behavior:'instant'});
+    })), 0);
+  };
+})();
+</script>
 </body>
 </html>
