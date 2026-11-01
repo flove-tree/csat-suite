@@ -80,7 +80,7 @@ const info=el('p','현재 실행 버전: '+(version.slice(0,12)||'확인 불가'
 const notice=el('p'),update=el('button','새 버전 확인'),reload=el('button','작성 내용을 저장한 뒤 새 버전 열기');
 for(const b of [update,reload])b.type='button';reload.hidden=true;notice.setAttribute('role','status');
 panel.append(info,notice,update,reload);host.append(panel);
-let latestVersion='',checking=null;
+let latestVersion='',checking=null,versionCheckBusy=false;
 function drafting(){return wish&&(phase!=='idle'||editing||!!flight||pending!==null||!!$('wish').value.trim()||(typeof pastBusy!=='undefined'&&pastBusy)||(!$('pastForm')?.hidden&&!!$('pastWish')?.value.trim()));}
 function destination(file,commit){const u=new URL(file,location.href);u.searchParams.set('flove_build',commit);return u.href;}
 async function latest(){
@@ -92,11 +92,19 @@ async function latest(){
  }finally{clearTimeout(t);}})();
  try{return await checking;}finally{checking=null;}
 }
-async function check(){try{
- latestVersion=await latest();reload.hidden=latestVersion===version;
- notice.textContent=latestVersion===version?'최신 배포 버전을 사용 중이에요.':'새 배포 버전 '+latestVersion.slice(0,12)+'이 있어요. 입력 내용은 그대로 유지하며 자동 새로고침하지 않아요.';
- const link=document.getElementById('wish-shortcut');if(link)link.href=destination('soweon.html',latestVersion);
-}catch(_){notice.textContent='새 버전 확인 실패 · 현재 화면과 기록은 유지돼요.';}}
+function versionCheckTime(){return new Date().toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})+' (KST)';}
+async function check(){
+ if(versionCheckBusy)return;
+ versionCheckBusy=true;update.disabled=true;update.textContent='확인 중…';panel.setAttribute('aria-busy','true');
+ notice.textContent='새 배포 버전을 확인하고 있어요…';
+ try{
+  latestVersion=await latest();reload.hidden=latestVersion===version;
+  const result=latestVersion===version?'최신 버전 확인 완료 · 최신 배포 버전을 사용 중이에요.':'새 배포 버전 '+latestVersion.slice(0,12)+'이 있어요. 입력 내용은 그대로 유지하며 자동 새로고침하지 않아요.';
+  notice.textContent=result+' · 확인 시각: '+versionCheckTime();
+  const link=document.getElementById('wish-shortcut');if(link)link.href=destination('soweon.html',latestVersion);
+ }catch(_){notice.textContent='새 버전 확인 실패 · 현재 화면과 기록은 유지돼요. · 시도 시각: '+versionCheckTime();}
+ finally{versionCheckBusy=false;update.disabled=false;update.textContent='새 버전 다시 확인';panel.setAttribute('aria-busy','false');}
+}
 update.onclick=()=>{void check();};
 reload.onclick=async()=>{
  if(drafting()){notice.textContent='작성·수정·비교 중인 내용을 먼저 저장하거나 취소해 주세요. 자동으로 지우지 않아요.';return;}
