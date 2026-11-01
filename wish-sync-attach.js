@@ -137,5 +137,61 @@ commit=function(change){
   try{return change(a);}finally{context=previous;}
  });
 };
+
+const BATCH='wish-layout-20261028-20261102-v1';
+const inBatch=w=>w.date>='2026-10-28'&&w.date<='2026-11-02';
+const batchDone=rows=>rows.some(w=>inBatch(w)&&w.layoutBatch===BATCH);
+function arrangeBatch(rows){
+ if(batchDone(rows))return 0;
+ const targets=rows.filter(inBatch).sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
+ const placed=rows.filter(w=>!inBatch(w));
+ for(const w of targets){Object.assign(w,choosePosition(BATCH+'|'+identity(w),placed));w.layoutBatch=BATCH;placed.push(w);}
+ return targets.length;
+}
+const dialog=$('dataDialog'),once=document.createElement('p'),button=document.createElement('button');
+button.type='button';button.textContent='10/28~11/2 별 위치 한 번 정리';
+button.title='이 기간의 소원 위치만 재배치하고, 완료되면 이 버튼을 숨깁니다.';
+once.append(button);dialog.insertBefore(once,$('records'));
+const doneKey='__flove_wish_layout_done:'+BATCH,backupKey='__flove_wish_layout_backup:'+BATCH;
+let arranging=false;
+function updateBatchButton(){
+ let done=batchDone(data);
+ try{if(done)localStorage.setItem(doneKey,'1');done=done||localStorage.getItem(doneKey)==='1';}catch(_){}
+ if(done){once.remove();return;}
+ once.hidden=!data.some(inBatch);
+}
+button.onclick=async()=>{
+ if(arranging)return;
+ if(phase!=='idle'||editing||flight||pending!==null||$('wish').value.trim()||(!$('pastForm')?.hidden&&$('pastWish')?.value.trim())){toast('작성·비교·저장 중인 작업을 먼저 마쳐 주세요.');return;}
+ if(!window.FloveWishConnection){toast('동기화 연결을 먼저 확인해 주세요.');return;}
+ if(!window.confirm('2026년 10월 28일~11월 2일에 저장된 소원의 위치만 한 번 재배치할까요? 기간 밖 별과 소원 내용·날짜·색·모양은 유지합니다. 원본은 백업하고 완료 후 이 버튼은 사라집니다.'))return;
+ arranging=true;button.disabled=true;button.textContent='서버 기록 확인 중…';
+ try{
+  const state=await window.FloveWishConnection.syncOnce();
+  if(state.status!=='synced'){toast('동기화 완료 후 다시 눌러 주세요. 충돌이 있다면 먼저 해결해 주세요.');return;}
+  if(phase!=='idle'||editing||flight||pending!==null||$('wish').value.trim()||(!$('pastForm')?.hidden&&$('pastWish')?.value.trim())){toast('화면 상태가 바뀌었어요. 작업을 마친 뒤 다시 눌러 주세요.');return;}
+  phase='rearranging';view();let count=0;
+  const ok=await commit(a=>{
+   if(batchDone(a)||!a.some(inBatch))return false;
+   const existing=localStorage.getItem(backupKey);
+   if(existing===null){
+    const backup=JSON.stringify({version:1,reason:BATCH,createdAt:new Date().toISOString(),raw:localStorage.getItem(KEY)});
+    localStorage.setItem(backupKey,backup);if(localStorage.getItem(backupKey)!==backup)throw Error('Layout backup not confirmed');
+   }else{const backup=JSON.parse(existing);if(backup.reason!==BATCH||typeof backup.raw!=='string')throw Error('Invalid layout backup');}
+   count=arrangeBatch(a);
+  });
+  if(!ok){toast('재배치를 적용하지 않았어요. 기존 기록을 유지했어요.');return;}
+  try{localStorage.setItem(doneKey,'1');}catch(_){}
+  sync();records();once.remove();toast(count+'개 소원의 별 위치를 정리했어요. 서버 반영을 확인하고 있어요.');
+ }catch(error){console.error('[Wish one-time layout]',error);toast('위치 정리를 마치지 못했어요. 기존 기록과 동기화 상태를 확인해 주세요.');}
+ finally{
+  if(phase==='rearranging')phase='idle';view();arranging=false;button.disabled=false;button.textContent='10/28~11/2 별 위치 한 번 정리';updateBatchButton();
+  if(batchDone(data))void window.FloveWishConnection.syncOnce();
+ }
+};
+window.addEventListener('flove-wish-sync-state',updateBatchButton);
+window.addEventListener('storage',event=>{if(event.key===KEY||event.key===doneKey||event.key===null)updateBatchButton();});
+$('openData').addEventListener('click',updateBatchButton);
+updateBatchButton();
 window.FloveWishPlacement=Object.freeze({version:1});
 })();
