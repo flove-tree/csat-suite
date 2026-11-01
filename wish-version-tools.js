@@ -170,3 +170,70 @@ download.onclick=()=>{try{const raw=localStorage.getItem(lastBackup);if(!raw)thr
 host.addEventListener('cancel',event=>{if(working){event.preventDefault();return;}if(review)finishReview();});
 host.addEventListener('close',()=>{if(review&&!working)finishReview();});
 })(typeof globalThis==='object'?globalThis:this);
+
+/* Keep sync, conflict review and version details in one adaptive card. */
+(function(){
+'use strict';
+if(typeof document==='undefined')return;
+const dialog=document.getElementById('dataDialog');if(!dialog)return;
+const card=document.getElementById('wish-sync-status'),compare=document.getElementById('wish-conflict-tools'),versions=document.getElementById('flove-version-tools');
+if(!card||!compare||!versions)return;
+const label=card.querySelector('p'),retry=card.querySelector('button');
+const [inspect,cancel,apply,download]=compare.querySelectorAll('button');
+const feedback=compare.lastElementChild;
+if(!label||!retry||!inspect||!cancel||!apply||!download||feedback.tagName!=='P')return;
+const title=document.createElement('h3');title.textContent='소원 동기화';title.style.cssText='margin:0 0 8px;font-size:14px;font-weight:500';card.prepend(title);
+const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='버전 · 복구 상세';summary.style.cursor='pointer';
+details.style.cssText='margin-top:10px;font-size:11px;opacity:.85';details.append(summary,versions,download);
+versions.style.cssText='padding:6px 0;font-size:11px';
+compare.style.cssText='padding:0;margin:0';inspect.hidden=true;
+feedback.style.cssText='white-space:pre-line;font-size:12px;margin:8px 0';
+card.append(compare,feedback,details);
+let checking=false,queued=false;
+function displayMode(){
+ const reviewing=phase==='reviewing';card.dataset.mode=reviewing?'compare':'status';
+ label.hidden=reviewing;retry.hidden=reviewing;compare.hidden=!reviewing;
+ details.hidden=reviewing;summary.textContent=versions.textContent.includes('새 배포 버전 ')?'새 버전 있음 · 상세':'버전 · 복구 상세';card.setAttribute('aria-busy',String(checking||reviewing&&apply.disabled));
+}
+const originalInspect=inspect.onclick;
+inspect.onclick=async function(event){try{return await originalInspect.call(this,event);}finally{displayMode();}};
+const originalCancel=cancel.onclick;
+cancel.onclick=function(event){const result=originalCancel.call(this,event);displayMode();return result;};
+const originalApply=apply.onclick;
+apply.onclick=async function(event){try{return await originalApply.call(this,event);}finally{displayMode();}};
+function offerComparison(state){
+ if(queued||checking||!dialog.open||phase==='reviewing'||!['conflict','uncertain','remote-missing'].includes(state?.status))return;
+ queued=true;queueMicrotask(()=>{queued=false;if(dialog.open&&phase!=='reviewing')void inspect.onclick();});
+}
+retry.onclick=async()=>{
+ if(checking||phase==='reviewing')return;
+ checking=true;retry.disabled=true;feedback.textContent='';label.textContent='서버 기록을 다시 확인하고 있어요…';displayMode();
+ let state;
+ try{if(!window.FloveWishConnection)throw Error('동기화 연결이 준비되지 않았어요.');state=await window.FloveWishConnection.syncOnce();}
+ catch(error){label.textContent='동기화 확인 실패 · '+error.message;}
+ finally{checking=false;retry.disabled=false;displayMode();}
+ offerComparison(state);
+};
+window.addEventListener('flove-wish-sync-state',event=>{if(phase!=='reviewing')offerComparison(event.detail);});
+document.getElementById('openData')?.addEventListener('click',()=>{displayMode();offerComparison(window.FloveWishConnection?.getState());});
+const observer=new MutationObserver(displayMode);
+observer.observe(compare,{childList:true,subtree:true,characterData:true});
+observer.observe(feedback,{childList:true,subtree:true,characterData:true});
+observer.observe(versions,{childList:true,subtree:true,characterData:true});
+dialog.addEventListener('close',displayMode);
+const music=document.getElementById('music');
+if(music?.parentElement&&!document.getElementById('wish-corner-home')){
+ const home=document.createElement('button');home.id='wish-corner-home';home.type='button';home.title='허브로 돌아가기';home.setAttribute('aria-label','허브로 돌아가기');
+ home.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-width:36px;color:#d8cdeb;border-color:#c6b6ec40;background:linear-gradient(135deg,#b39bdb18,#7997ce0d)';
+ home.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9"/></svg>';
+ home.onclick=()=>{
+  if(checking||(phase!=='idle'&&phase!=='reviewing')||(phase==='reviewing'&&(inspect.disabled||apply.disabled))){toast('저장이나 서버 확인이 끝난 뒤 이동해 주세요.');return;}
+  const draft=editing||!!$('wish').value.trim()||pending!==null||(!$('pastForm')?.hidden&&!!$('pastWish')?.value.trim())||phase==='reviewing';
+  if(draft&&!window.confirm('저장하지 않은 입력이나 비교 선택은 사라질 수 있어요. 허브로 이동할까요? 저장된 소원은 유지돼요.'))return;
+  const url=new URL('index.html',location.href),build=document.querySelector('meta[name="flove-build"]')?.content;
+  if(build)url.searchParams.set('flove_build',build);location.assign(url.href);
+ };
+ music.insertAdjacentElement('afterend',home);
+}
+displayMode();offerComparison(window.FloveWishConnection?.getState());
+})();
