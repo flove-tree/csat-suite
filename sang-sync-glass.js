@@ -2,7 +2,7 @@
 (() => {
 'use strict';
 const cfg=window.FLOVE_SYNC_CONFIG||{};if(cfg.page!=='sang'||cfg.readOnly)return;
-const css="#flove-sync-v2-panel.ss-root{position:relative;z-index:10000;width:100%;max-width:960px;margin:0 auto 12px;padding:0;border:0;border-radius:0;background:transparent;color:#334155;font:inherit}#flove-sync-v2-panel.ss-root *{box-sizing:border-box}#flove-sync-v2-panel.ss-root [hidden]{display:none!important}#flove-sync-v2-panel .ss-bar{--a:#059669;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:9px;min-height:44px;padding:6px 10px;border:1px solid rgba(255,255,255,.95);outline:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(255,255,255,.68);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);box-shadow:0 4px 16px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.8)}#flove-sync-v2-panel .ss-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(16,185,129,.08);color:var(--a)}#flove-sync-v2-panel .ss-icon svg{width:17px;height:17px}#flove-sync-v2-panel .ss-copy{display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;min-width:0}#flove-sync-v2-panel .ss-title{margin:0;font-size:11.5px;font-weight:700;line-height:1.6;overflow-wrap:anywhere}#flove-sync-v2-panel .ss-time{font-size:10px;color:#64748b;white-space:nowrap}#flove-sync-v2-panel .ss-actions{display:flex;gap:4px;align-items:center}#flove-sync-v2-panel .ss-retry,#flove-sync-v2-panel .ss-info summary{display:grid;place-items:center;min-width:30px;min-height:30px;margin:0;padding:6px;border:1px solid rgba(255,255,255,.8);border-radius:9px;background:rgba(255,255,255,.4);color:#64748b;cursor:pointer;list-style:none}#flove-sync-v2-panel .ss-retry svg,#flove-sync-v2-panel .ss-info summary svg{width:14px;height:14px}#flove-sync-v2-panel .ss-info summary::-webkit-details-marker{display:none}#flove-sync-v2-panel .ss-retry:disabled{opacity:.45;cursor:wait}#flove-sync-v2-panel .ss-inspect{min-height:28px;padding:4px 8px;border:1px solid #fde68a;border-radius:8px;background:rgba(251,191,36,.1);color:#92400e;font-size:10.5px;font-weight:650;cursor:pointer;white-space:nowrap}#flove-sync-v2-panel .ss-pop{position:absolute;right:0;top:calc(100% + 7px);width:min(310px,100%);padding:14px;border:1px solid #fff;border-radius:14px;background:rgba(248,250,252,.97);backdrop-filter:blur(20px);box-shadow:0 12px 28px rgba(15,23,42,.1);font-size:11px;line-height:1.8}#flove-sync-v2-panel .ss-pop p{margin:0 0 8px;overflow-wrap:anywhere}#flove-sync-v2-panel .ss-backup,#flove-sync-v2-panel .ss-choice{min-height:32px;margin:0;padding:8px 10px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;color:#475569;font-size:11px;cursor:pointer}#flove-sync-v2-panel .ss-panel{margin-top:7px;padding:14px;border:1px solid #fde68a;border-radius:12px;background:rgba(255,251,235,.94);color:#78350f;font-size:11px;line-height:1.8}#flove-sync-v2-panel .ss-panel h2{margin:0 0 5px;font-size:12px}#flove-sync-v2-panel .ss-warning{margin:0 0 10px}#flove-sync-v2-panel .ss-groups{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}#flove-sync-v2-panel .ss-group{border:1px solid #fde68a;border-radius:6px;background:#fff;padding:2px 7px;font-size:10px}#flove-sync-v2-panel .ss-choices{display:flex;flex-wrap:wrap;gap:7px}#flove-sync-v2-panel .ss-choice{border-color:#fcd34d;color:#78350f}#flove-sync-v2-panel .ss-raw{display:none!important}#flove-sync-v2-panel:is([data-sang-state='conflict'],[data-sang-state='waiting']) .ss-bar{--a:#b45309;background:rgba(255,253,247,.72)}#flove-sync-v2-panel[data-sang-state='error'] .ss-bar{--a:#e11d48}#flove-sync-v2-panel:is([data-sang-state='checking'],[data-sang-state='saving']) .ss-bar{--a:#2563eb}#flove-sync-v2-panel :is(button,summary):focus-visible{outline:2px solid #6366f1;outline-offset:3px}@media(max-width:600px){#flove-sync-v2-panel .ss-bar{grid-template-columns:25px minmax(0,1fr) auto;gap:6px;padding:6px 8px;border-radius:12px}#flove-sync-v2-panel .ss-icon{width:25px;height:25px}#flove-sync-v2-panel .ss-title{font-size:11px}#flove-sync-v2-panel .ss-time{display:none}#flove-sync-v2-panel .ss-actions{gap:2px}#flove-sync-v2-panel .ss-retry,#flove-sync-v2-panel .ss-info summary{min-width:28px;min-height:28px}}@media print{#flove-sync-v2-panel.ss-root{display:none!important}}\n";
+const css="#flove-sync-v2-panel.ss-root{position:relative;z-index:10000;width:100%;max-width:960px;margin:0 auto 12px;padding:0;border:0;border-radius:0;background:transparent;color:#334155;font:inherit}#flove-sync-v2-panel.ss-root *{box-sizing:border-box}#flove-sync-v2-panel.ss-root [hidden]{display:none!important}#flove-sync-v2-panel .ss-bar{--a:#059669;display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:9px;min-height:44px;padding:6px 10px;border:1px solid rgba(255,255,255,.95);outline:1px solid rgba(148,163,184,.16);border-radius:14px;background:rgba(255,255,255,.68);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);box-shadow:0 4px 16px rgba(15,23,42,.045),inset 0 1px 0 rgba(255,255,255,.8)}#flove-sync-v2-panel .ss-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(16,185,129,.08);color:var(--a)}#flove-sync-v2-panel .ss-icon svg{width:17px;height:17px}#flove-sync-v2-panel .ss-copy{display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;min-width:0}#flove-sync-v2-panel .ss-title{margin:0;font-size:11.5px;font-weight:700;line-height:1.6;overflow-wrap:anywhere}#flove-sync-v2-panel .ss-time{font-size:10px;color:#64748b;white-space:nowrap}#flove-sync-v2-panel .ss-actions{display:flex;gap:4px;align-items:center}#flove-sync-v2-panel .ss-retry,#flove-sync-v2-panel .ss-info summary{display:grid;place-items:center;min-width:30px;min-height:30px;margin:0;padding:6px;border:1px solid rgba(255,255,255,.8);border-radius:9px;background:rgba(255,255,255,.4);color:#64748b;cursor:pointer;list-style:none}#flove-sync-v2-panel .ss-retry svg,#flove-sync-v2-panel .ss-info summary svg{width:14px;height:14px}#flove-sync-v2-panel .ss-info summary::-webkit-details-marker{display:none}#flove-sync-v2-panel .ss-retry:disabled{opacity:.45;cursor:wait}#flove-sync-v2-panel .ss-inspect{min-height:28px;padding:4px 8px;border:1px solid #fde68a;border-radius:8px;background:rgba(251,191,36,.1);color:#92400e;font-size:10.5px;font-weight:650;cursor:pointer;white-space:nowrap}#flove-sync-v2-panel .ss-pop{position:absolute;right:0;top:calc(100% + 7px);width:min(310px,100%);padding:14px;border:1px solid #fff;border-radius:14px;background:rgba(248,250,252,.97);backdrop-filter:blur(20px);box-shadow:0 12px 28px rgba(15,23,42,.1);font-size:11px;line-height:1.8}#flove-sync-v2-panel .ss-pop p{margin:0 0 8px;overflow-wrap:anywhere}#flove-sync-v2-panel .ss-backup,#flove-sync-v2-panel .ss-choice{min-height:32px;margin:0;padding:8px 10px;border:1px solid #e2e8f0;border-radius:9px;background:#fff;color:#475569;font-size:11px;cursor:pointer}#flove-sync-v2-panel .ss-panel{margin-top:7px;padding:14px;border:1px solid #fde68a;border-radius:12px;background:rgba(255,251,235,.94);color:#78350f;font-size:11px;line-height:1.8}#flove-sync-v2-panel .ss-panel h2{margin:0 0 5px;font-size:12px}#flove-sync-v2-panel .ss-warning{margin:0 0 10px}#flove-sync-v2-panel .ss-groups{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}#flove-sync-v2-panel .ss-group{border:1px solid #fde68a;border-radius:6px;background:#fff;padding:2px 7px;font-size:10px}#flove-sync-v2-panel .ss-choices{display:flex;flex-wrap:wrap;gap:7px}#flove-sync-v2-panel .ss-raw{display:none!important}#flove-sync-v2-panel:is([data-sang-state='conflict'],[data-sang-state='waiting']) .ss-bar{--a:#b45309;background:rgba(255,253,247,.72)}#flove-sync-v2-panel[data-sang-state='error'] .ss-bar{--a:#e11d48}#flove-sync-v2-panel:is([data-sang-state='checking'],[data-sang-state='saving']) .ss-bar{--a:#2563eb}#flove-sync-v2-panel :is(button,summary):focus-visible{outline:2px solid #6366f1;outline-offset:3px}@media(max-width:600px){#flove-sync-v2-panel .ss-bar{grid-template-columns:25px minmax(0,1fr) auto;gap:6px;padding:6px 8px;border-radius:12px}#flove-sync-v2-panel .ss-icon{width:25px;height:25px}#flove-sync-v2-panel .ss-title{font-size:11px}#flove-sync-v2-panel .ss-time{display:none}#flove-sync-v2-panel .ss-actions{gap:2px}#flove-sync-v2-panel .ss-retry,#flove-sync-v2-panel .ss-info summary{min-width:28px;min-height:28px}}@media print{#flove-sync-v2-panel.ss-root{display:none!important}}\n";
 const svg=p=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">'+p+'</svg>';
 const cloud=svg('<path d="M7 18h10a4.5 4.5 0 0 0 1-8.9 6 6 0 0 0-11.4-1A5 5 0 0 0 7 18Z"/><path d="m9 13 2 2 4-4"/>');
 const refresh=svg('<path d="M20 7v5h-5M4 17v-5h5M5.8 7a7 7 0 0 1 11.7-1.5L20 8M4 16l2.5 2.5A7 7 0 0 0 18.2 17"/>');
@@ -39,3 +39,73 @@ function mount(){
 if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.disconnect();});observer.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>observer.disconnect(),10000);}
 })();
 
+/* Opt-in diagnostics: metadata only, in memory, no transport or storage. */
+(() => {
+'use strict';
+if(window.FLOVE_SYNC_CONFIG?.page!=='sang')return;
+function install(){
+ if(document.getElementById('ethics-focus-diagnostics'))return;
+ const form=document.getElementById('noteForm');if(!form)return;
+ const host=document.createElement('details');host.id='ethics-focus-diagnostics';
+ host.style.cssText='margin:24px 0 12px;padding:12px;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#334155;font-size:12px';
+ const summary=document.createElement('summary');summary.textContent='입력 언어 문제 진단 · 기본 꺼짐';summary.style.cursor='pointer';
+ const help=document.createElement('p');help.textContent='시작 후 창을 나갔다 돌아오세요. 영어로 바뀌면 표시 버튼을 누른 뒤 중지하세요. 입력 내용·누른 키는 기록하지 않습니다. 가/A 상태는 직접 읽을 수 없습니다. 최근 200건만 페이지 메모리에 남으며 새로고침하면 사라집니다. 목록 변화의 원인은 이 기록만으로 확정하지 않습니다.';
+ const controls=document.createElement('div');controls.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:8px 0';
+ const make=text=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.style.cssText='padding:7px 10px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#334155;cursor:pointer';return b;};
+ const start=make('진단 시작'),stop=make('진단 중지'),mark=make('지금 영어로 바뀜'),clear=make('진단 기록 비우기');
+ stop.disabled=mark.disabled=true;controls.append(start,stop,mark,clear);
+ const status=document.createElement('p');status.setAttribute('role','status');status.textContent='진단 꺼짐 · 서버 전송 및 기기 저장 없음';
+ const output=document.createElement('pre');output.tabIndex=0;output.setAttribute('aria-label','포커스 진단 기록');output.style.cssText='max-height:280px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.6;margin-top:8px';
+ host.append(summary,help,controls,status,output);document.body.append(host);
+ const allowedIds=new Set(['thinker','originalText','sourceInput','memo','reasonTag','recordType','recordCount','unitSelect','submitNoteButton','cancelEditButton']);
+ const roles=['wrong-input','correct-input','action-select','target-select','pick-selection','btn-add-pair'];
+ const identities=new WeakMap();let serial=0,running=false,controller=null,tree=null,syncObserver=null,syncBox=null,lastSync='',snapshot='',lastExternal='미확인',lines=[];
+ function describe(node){
+  if(!(node instanceof Element))return '없음';
+  if(host.contains(node))return '진단패널';
+  if(!identities.has(node))identities.set(node,++serial);
+  const role=allowedIds.has(node.id)?node.id:roles.find(c=>node.classList.contains(c))||node.tagName.toLowerCase();
+  return role+'@'+identities.get(node);
+ }
+ function active(){const n=document.activeElement;if(host.contains(n))return '진단패널(직전='+lastExternal+')';lastExternal=describe(n);return lastExternal;}
+ function add(kind,detail=''){
+  const now=new Date(),time=now.toLocaleTimeString('ko-KR',{hour12:false})+'.'+String(now.getMilliseconds()).padStart(3,'0');
+  lines.push(time+' | '+kind+(detail?' | '+detail:'')+' | 활성='+active()+' | 창초점='+document.hasFocus()+' | 숨김='+document.hidden);
+  if(lines.length>200)lines.shift();output.textContent=lines.join('\n');output.scrollTop=output.scrollHeight;
+ }
+ function controlsSnapshot(){return [...form.querySelectorAll('input,textarea,select')].map(describe).join(', ');}
+ function inspectSync(){
+  const state=syncBox?.getAttribute('data-sang-state'),safe=['checking','conflict','saving','synced','waiting','error','notice'].includes(state)?state:'미표시';
+  if(safe!==lastSync){lastSync=safe;add('동기화 UI 상태',safe);}
+ }
+ function attachSync(){
+  const box=document.getElementById('flove-sync-v2-panel');if(box===syncBox)return;
+  syncObserver?.disconnect();syncBox=box;lastSync='';
+  if(box){syncObserver=new MutationObserver(()=>{if(running)inspectSync();});syncObserver.observe(box,{attributes:true,attributeFilter:['data-sang-state']});}
+  inspectSync();
+ }
+ function end(){
+  if(!running)return;controller.abort();tree.disconnect();syncObserver?.disconnect();add('진단 중지');running=false;start.disabled=false;stop.disabled=mark.disabled=true;summary.textContent='입력 언어 문제 진단 · 중지됨';status.textContent='진단 중지 · 기록은 이 페이지 메모리에만 있습니다';
+ }
+ start.addEventListener('click',()=>{
+  if(running)return;running=true;controller=new AbortController();syncBox=null;lastSync='';snapshot=controlsSnapshot();
+  start.disabled=true;stop.disabled=mark.disabled=false;summary.textContent='입력 언어 문제 진단 · 기록 중';status.textContent='기록 중 · 입력 내용 없음 · 최대 200건 · 새로고침하면 삭제';
+  const listen=(target,type,fn,capture=false)=>target.addEventListener(type,fn,{capture,signal:controller.signal});
+  for(const type of ['focus','blur'])listen(window,type,()=>add('창 '+type));
+  listen(document,'visibilitychange',()=>add('페이지 표시 상태 변경'));
+  for(const type of ['focusin','focusout','compositionstart','compositionend'])listen(document,type,e=>{if(!host.contains(e.target))add(type,describe(e.target));},true);
+  for(const type of ['submit','reset'])listen(form,type,()=>add('폼 '+type),true);
+  listen(window,'pagehide',end);
+  tree=new MutationObserver(records=>{
+   if(!running)return;const next=controlsSnapshot();if(next!==snapshot){add('입력 요소 구성/동일성 변경','이전=['+snapshot+'] 이후=['+next+']');snapshot=next;}
+   const list=document.getElementById('noteList');if(list&&records.some(r=>r.target===list||list.contains(r.target)))add('목록 DOM 변경','원인 미확정');
+   attachSync();
+  });
+  tree.observe(document.body,{childList:true,subtree:true});add('진단 시작','입력 요소=['+snapshot+']');attachSync();
+ });
+ stop.addEventListener('click',end);
+ mark.addEventListener('click',()=>{if(running)add('사용자 표시: 지금 영어로 바뀜','표시 버튼 클릭으로 진단패널에 초점이 올 수 있음');});
+ clear.addEventListener('click',()=>{lines=[];output.textContent='';if(running)add('진단 기록 비움');});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
