@@ -92,3 +92,160 @@ if(!mount()){const observer=new MutationObserver(()=>{if(mount())observer.discon
     setTimeout(() => observer.disconnect(), 10000);
   }
 })();
+
+/* English study sessions: collect final choices, then save existing records once. */
+(() => {
+'use strict';
+function install() {
+ if (window.FloveEnglishStudy || !window.FloveSync || window.FLOVE_SYNC_CONFIG?.page !== 'eng' || window.FLOVE_SYNC_CONFIG.readOnly) return;
+ const dataKey='english_exam_logs_v14', draftKey='__flove_eng_study_draft_v1';
+ const old={};
+ for(const name of ['getAllVocabList','setWordMemorizedState','initFlashcardMode','renderFlashcard','nextFlashcard','prevFlashcard','flipFlashcard','initQuizMode','renderQuizQuestion','checkQuizAnswer','switchTab','switchVocabSubTab']) {
+  if(typeof window[name]!=='function') throw Error('영어 학습 함수 누락: '+name);
+  old[name]=window[name];
+ }
+ let session=null, animation=null, serial=0, storageWarning=false;
+ const visible=id=>{const e=document.getElementById(id);return e&&!e.hidden&&!e.classList.contains('hidden');};
+ const key=(id,word)=>JSON.stringify([id,word]);
+ function banner(message) {
+  for(const mode of ['card','quiz']) {
+   const host=document.getElementById('vocab-sub-'+mode);if(!host)continue;
+   let bar=document.getElementById('eng-study-'+mode);
+   if(!bar){
+    bar=document.createElement('div');bar.id='eng-study-'+mode;bar.className='w-full text-xs bg-indigo-50 border border-indigo-200 rounded-xl p-3 space-y-2';
+    const text=document.createElement('p');text.setAttribute('role','status');text.setAttribute('aria-live','polite');bar.appendChild(text);
+    const done=document.createElement('button');done.type='button';done.textContent='학습 종료 · 한 번에 저장';done.className='px-3 py-2 rounded-lg bg-indigo-600 text-white font-bold';
+    done.onclick=()=>{if(finish())old.switchVocabSubTab('list');};bar.appendChild(done);host.prepend(bar);
+   }
+   bar.firstElementChild.textContent=message || (session?'학습 중 변경 '+session.changes.size+'묶음 · 종료할 때 한 번에 저장합니다.':'기기에 반영 완료 · 서버 저장 여부는 상단 동기화 상태를 확인하세요.');
+  }
+ }
+ function journal() {
+  try {
+   if(session&&session.changes.size)sessionStorage.setItem(draftKey,JSON.stringify({version:1,changes:[...session.changes.values()]}));
+   else sessionStorage.removeItem(draftKey);
+   storageWarning=false;
+  }catch(error){
+   if(!storageWarning){storageWarning=true;alert('임시 보관 실패 — 현재 화면의 변경은 유지됩니다. 새로고침하지 말고 학습 종료·저장을 눌러 주세요.');}
+  }
+ }
+ function cancelAnimation(){serial++;if(animation!==null)clearTimeout(animation);animation=null;isCardAnimating=false;}
+ function begin(mode){if(!finish())return false;session={mode,changes:new Map()};serial++;banner();return true;}
+ function finish() {
+  cancelAnimation();
+  if(!session)return true;
+  const changes=[...session.changes.values()];
+  {
+   try {
+    const latest=FloveSync.readArray(dataKey,examDataList);
+    const next=JSON.parse(JSON.stringify(latest));
+    for(const change of changes){
+     const exam=next.find(e=>e.id===change.id);
+     const matches=exam&&Array.isArray(exam.vocabs)?exam.vocabs.filter(v=>v.word===change.word):[];
+     if(matches.length!==change.before.length||matches.some((v,i)=>(v.meaning||'')!==change.before[i].meaning))throw Error('학습 중 단어가 수정·삭제되었습니다: '+change.word);
+     for(const v of matches)v.memorized=change.value;
+    }
+    const raw=JSON.stringify(next);
+    if(changes.length&&raw!==localStorage.getItem(dataKey))FloveSync.saveLocal(dataKey,raw);
+    examDataList=next;
+   }catch(error){journal();banner('저장 실패 · 변경사항 유지 중. 종료·저장 버튼으로 다시 시도하세요. '+error.message);return false;}
+  }
+  session=null;
+  journal();
+  if(changes.length)FloveSync.markSaved();
+  banner();
+  return true;
+ }
+ function stage(word,id,value) {
+  if(!session)return old.setWordMemorizedState(word,id,value);
+  value=Boolean(value);
+  for(const exam of examDataList){
+   if(id!==null&&exam.id!==id)continue;
+   const matches=Array.isArray(exam.vocabs)?exam.vocabs.filter(v=>v.word===word):[];
+   if(!matches.length)continue;
+   const k=key(exam.id,word),previous=session.changes.get(k);
+   const before=previous?previous.before:matches.map(v=>({meaning:v.meaning||'',memorized:Boolean(v.memorized)}));
+   if(before.every(v=>v.memorized===value))session.changes.delete(k);
+   else session.changes.set(k,{id:exam.id,word,before,value});
+  }
+  journal();banner();
+ }
+ window.setWordMemorizedState=stage;
+ window.getAllVocabList=function(){return old.getAllVocabList().map(v=>{const change=session?.changes.get(key(v.examId,v.word));return change?{...v,memorized:change.value}:v;});};
+ window.initFlashcardMode=function(){if(!begin('card'))return;old.initFlashcardMode();};
+ window.renderFlashcard=function(){
+  if(flashcardList.length===0||currentCardIdx>=flashcardList.length)finish();
+  old.renderFlashcard();
+ };
+ window.markCurrentCard=function(value){
+  if(isCardAnimating||!flashcardList.length||currentCardIdx>=flashcardList.length)return;
+  if(!session){session={mode:'card',changes:new Map()};serial++;}
+  const item=flashcardList[currentCardIdx],idx=currentCardIdx,token=serial;
+  stage(item.word,item.examId,value);
+  isCardAnimating=true;
+  const box=document.getElementById('flashcard-box');
+  box.className='w-full max-w-md h-64 text-white rounded-2xl shadow-xl flex flex-col items-center justify-center p-6 text-center '+(value?'bg-emerald-600':'bg-rose-600');
+  box.textContent=value?'암기 선택 · 종료 시 저장':'미암기 선택 · 종료 시 저장';
+  animation=setTimeout(()=>{
+   animation=null;
+   if(serial!==token||!session||session.mode!=='card')return;
+   currentCardIdx=idx+1;isCardFlipped=false;isCardAnimating=false;window.renderFlashcard();
+  },320);
+ };
+ for(const name of ['nextFlashcard','prevFlashcard','flipFlashcard'])window[name]=function(){cancelAnimation();return old[name]();};
+ window.initQuizMode=function(){if(!begin('quiz'))return;old.initQuizMode();};
+ window.renderQuizQuestion=function(){
+  if(quizQueue.length===0||quizCurrentIdx>=quizQueue.length||getAllVocabList().length<4)finish();
+  old.renderQuizQuestion();
+ };
+ function quizChoices(){
+  if(document.getElementById('eng-quiz-memo'))return;
+  const host=document.getElementById('quiz-card-box'),row=document.createElement('div');row.id='eng-quiz-memo';row.className='flex flex-wrap justify-center gap-2 mt-4';
+  const hint=document.createElement('p');hint.className='w-full text-xs text-slate-500';hint.textContent='정답 여부와 별개로 암기 상태를 선택하세요. 선택하면 다음 문제로 이동합니다.';row.appendChild(hint);
+  for(const value of [false,true]){
+   const button=document.createElement('button');button.type='button';button.textContent=value?'암기 · 다음':'미암기 · 다음';button.className='px-3 py-2 text-xs font-bold rounded-lg border '+(value?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700');
+   button.onclick=()=>{
+    if(!session||session.mode!=='quiz'||!quizAnswered||!currentQuizWord||quizCurrentIdx>=quizQueue.length)return;
+    stage(currentQuizWord.word,currentQuizWord.examId,value);generateQuizQuestion();
+   };row.appendChild(button);
+  }
+  host.appendChild(row);
+ }
+ window.checkQuizAnswer=function(...args){if(quizAnswered)return;old.checkQuizAnswer(...args);if(quizAnswered)quizChoices();};
+ window.switchVocabSubTab=function(sub){if(!finish())return;old.switchVocabSubTab(sub);};
+ window.switchTab=function(tab){
+  if(tab!=='vocab'&&!finish())return;
+  old.switchTab(tab);
+  if(tab==='vocab'&&!session){
+   if(visible('vocab-sub-card'))window.initFlashcardMode();
+   else if(visible('vocab-sub-quiz'))window.initQuizMode();
+  }
+ };
+ FloveSync.register({
+  editing:()=>editingExamId!==null||session!==null||(visible('tab-vocab')&&visible('vocab-sub-auto')&&isAutoPlaying),
+  refresh:()=>{examDataList=FloveSync.readArray(dataKey);renderHistory();renderAnalytics();renderIntegratedVocab();}
+ });
+ document.addEventListener('click',e=>{
+  const a=e.target.closest?.('a[href]');
+  if(a&&a.getAttribute('href')&&!a.getAttribute('href').startsWith('#')&&!finish()){e.preventDefault();e.stopImmediatePropagation();}
+ },true);
+ window.addEventListener('beforeunload',e=>{if(!finish()){e.preventDefault();e.returnValue='';}});
+ window.addEventListener('pagehide',()=>finish());
+ window.FloveEnglishStudy=Object.freeze({finish,hasPending:()=>Boolean(session?.changes.size)});
+ try {
+  const raw=sessionStorage.getItem(draftKey);
+  if(raw){
+   const draft=JSON.parse(raw);
+   if(draft.version!==1||!Array.isArray(draft.changes)||draft.changes.some(c=>!c||!['number','string'].includes(typeof c.id)||typeof c.word!=='string'||typeof c.value!=='boolean'||!Array.isArray(c.before)||!c.before.length||c.before.some(v=>typeof v.meaning!=='string'||typeof v.memorized!=='boolean')))throw Error('임시 보관 형식 오류');
+   session={mode:'recovery',changes:new Map(draft.changes.map(c=>[key(c.id,c.word),c]))};
+   banner('이전 학습의 미저장 변경을 복구했습니다. 종료·저장 버튼으로 반영하세요.');
+   alert('이전 학습의 미저장 변경을 복구했습니다. 단어장 탭에서 플래시카드나 퀴즈를 열면 이전 변경을 먼저 저장합니다.');
+  }
+ }catch(error){alert('이전 학습 임시 보관을 읽지 못했습니다. 원본을 자동 삭제하지 않습니다: '+error.message);}
+ if(!session&&visible('tab-vocab')){
+  if(visible('vocab-sub-card')){session={mode:'card',changes:new Map()};banner();}
+  else if(visible('vocab-sub-quiz')){session={mode:'quiz',changes:new Map()};banner();}
+ }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
